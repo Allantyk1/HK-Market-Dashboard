@@ -185,7 +185,7 @@
   .cz-row b{font-size:13px;letter-spacing:.04em} .cz-row i{display:block;font-size:11px;opacity:.85}
   .cz-row .lv,.cz-row .cs{font-family:var(--font-data);font-weight:600;text-align:right}
   .cz-row.now{opacity:1;outline:2px solid var(--ink);outline-offset:1px}
-  .cz-row.now::after{content:"◀ VXN now";position:absolute;right:-2px;top:-9px;font:600 10px var(--font-data);background:var(--ink);color:var(--bg);border-radius:5px;padding:1px 6px}
+  .cz-row.now::after{content:"◀ VHSI now";position:absolute;right:-2px;top:-9px;font:600 10px var(--font-data);background:var(--ink);color:var(--bg);border-radius:5px;padding:1px 6px}
   .cz-flag{border-radius:12px;padding:12px 14px;margin-top:10px;font-size:13px;line-height:1.55;border:1px solid var(--line)}
   .cz-flag.ok{background:var(--green-soft)} .cz-flag.hi{background:var(--amber-soft)} .cz-flag.lo{background:var(--red-soft)}
   .cz-meter{position:relative;height:10px;border-radius:5px;background:var(--panel-2);margin:8px 0 2px}
@@ -238,19 +238,19 @@
       <div class="seg" id="useTrim"><button type="button" data-v="0" title="Only the cash entered">Cash only</button><button type="button" data-v="1" title="Cash plus trimming positions above the max per stock">+ Trims</button><button type="button" data-v="2" title="Cash, trims, and selling every REVIEW EXIT position in full">+ Trims &amp; exits</button></div></div>
     <div class="ctl"><span class="lbl">Max per stock</span>
       <div class="seg" id="cap"><button type="button" data-v="10">10%</button><button type="button" data-v="15">15%</button><button type="button" data-v="20">20%</button></div></div>
-    <nav class="jump" aria-label="Jump to section"><a href="#s1">1 Scoreboard</a><a href="#s2">2 Portfolio</a><a href="#s3">3 Buy list</a><a href="#s4">4 Month plan</a><a href="#sdw">5 Dip watch</a><a href="#s5" id="jump5" hidden>6 Actual P&amp;L</a></nav>
+    <nav class="jump" aria-label="Jump to section"><a href="#smk">0 Market &amp; rotation</a><a href="#s1">1 Scoreboard</a><a href="#s2">2 Portfolio</a><a href="#s3">3 Buy list</a><a href="#s4">4 Month plan</a><a href="#sdw">5 Dip watch</a><a href="#s5" id="jump5" hidden>6 Actual P&amp;L</a></nav>
   </div>
 
-  <section class="desk" id="smk" hidden>
+  <section class="desk" id="smk">
     <div class="desk-head"><span class="idx">0</span><h2>Market turn alert &amp; monthly rotation</h2></div>
-    <p class="lede">Big jumps in market fear (<b>VXN</b> for the Nasdaq-100, <b>VIX</b> for the S&amp;P 500) have often come near turning points. Below: what happened after every past spike, which kind of spike we are in now, and how to split your money between <b>high-beta growth</b> (moves more than the market) and <b>low-beta quality</b> stocks and ETFs (moves less) at each <b>monthly review</b>.</p>
+    <p class="lede">Big jumps in Hong Kong market fear (<b>VHSI</b>, the Hang Seng volatility gauge, judged against both the <b>Hang Seng Index</b> and <b>Hang Seng TECH</b>) have often come near turning points. Below: what happened after every past spike, which kind of spike we are in now, and how to split your money between <b>high-beta growth</b> (moves more than the market) and <b>low-beta quality</b> stocks and ETFs (moves less) at each <b>monthly review</b>.</p>
     <div id="mkVerdict"></div>
     <div class="tiles" id="mkTiles"></div>
     <div class="mk-grid">
-      <div class="panel"><h3>VXN cash allocation levels</h3>
-        <p class="note" style="margin-top:0">Deploy cash as fear rises (wheel strategy / cash-secured puts). Within a zone, slide toward the low end of the cash range as VXN rises.</p>
+      <div class="panel"><h3>VHSI cash allocation levels</h3>
+        <p class="note" style="margin-top:0">Deploy cash as fear rises (wheel strategy / cash-secured puts). Within a zone, slide toward the low end of the cash range as VHSI rises.</p>
         <div class="cz" id="czTbl"></div></div>
-      <div class="panel"><h3>Your cash vs VXN</h3><div id="czFlag"></div></div>
+      <div class="panel"><h3>Your cash vs VHSI</h3><div id="czFlag"></div></div>
     </div>
     <div class="mk-grid study">
       <div class="panel"><h3>After a fear spike: what happened next</h3><div class="scroll"><table id="mkStudy"></table></div>
@@ -1069,18 +1069,18 @@ function renderDipWatch(held){
 /* ---- wiring ---- */
 let SB=null;
 /* ---- 0. market turn alert + monthly rotation (2026-11-12) ----
-   Data: vol_regime.json from generate_vol_regime.py. VXN crossing above 31 / 35
-   (vs the Nasdaq-100) and VIX above 25 / 30 / 35 (vs the S&P 500). Real-time
-   split: 20 sessions after the crossing, is fear still high (VXN >= 30 /
+   Data: vol_regime.json from generate_vol_regime.py. VHSI crossing above 31 / 35
+   (vs the Hang Seng Index) and VIX above 25 / 30 / 35 (vs the S&P 500). Real-time
+   split: 20 sessions after the crossing, is fear still high (VHSI >= 30 /
    VIX >= 25, "persisting", the crisis pattern) or back down ("fading", the
-   ordinary pattern)? The rotation call uses the VXN episode. */
+   ordinary pattern)? The rotation call uses the VHSI episode. */
 let VR=null;
 const RG={
-  risk_on:{name:"Spike fading → risk-on",when:"A VXN spike above 31/35 in the last 90 sessions that faded below 30 by day 20",why:"The ordinary-spike pattern: after these, the Nasdaq has usually been higher 2-3 months later. Lean into high beta, buying on dips."},
-  fresh:{name:"Fresh spike → wait for day 20",when:"VXN crossed above 31/35 less than 20 sessions ago",why:"Crisis and ordinary spikes look the same at the start. Stay balanced, buy in stages, and let day 20 decide."},
+  risk_on:{name:"Spike fading → risk-on",when:"A VHSI spike above 31/35 in the last 90 sessions that faded below 30 by day 20",why:"The ordinary-spike pattern: after these, the Hang Seng has usually been higher 2-3 months later. Lean into high beta, buying on dips."},
+  fresh:{name:"Fresh spike → wait for day 20",when:"VHSI crossed above 31/35 less than 20 sessions ago",why:"Crisis and ordinary spikes look the same at the start. Stay balanced, buy in stages, and let day 20 decide."},
   neutral:{name:"Neutral",when:"No recent spike, market not stretched",why:"Keep a balanced mix and follow the scoreboard."},
-  late_rally:{name:"Calm & near highs → rotate to low beta",when:"No spike, VXN under 22, Nasdaq-100 within 3% of its 1-year high",why:"Fear is low and prices are stretched: bank some high-beta gains into steadier names before the next dip."},
-  defensive:{name:"Fear persisting → defensive",when:"VXN still at 30+ twenty sessions after a spike",why:"The crisis pattern: fear that won't fade has come with deeper falls. Hold mostly low beta and ETFs."}};
+  late_rally:{name:"Calm & near highs → rotate to low beta",when:"No spike, VHSI under 22, Hang Seng Index within 3% of its 1-year high",why:"Fear is low and prices are stretched: bank some high-beta gains into steadier names before the next dip."},
+  defensive:{name:"Fear persisting → defensive",when:"VHSI still at 30+ twenty sessions after a spike",why:"The crisis pattern: fear that won't fade has come with deeper falls. Hold mostly low beta and ETFs."}};
 const RG_ORDER=["risk_on","fresh","neutral","late_rally","defensive"];
 const RG_MIX={risk_on:70,fresh:50,neutral:50,late_rally:35,defensive:25};
 function statCell(st){return st&&st.n?`<span class="${st.median>=0?"pos":"neg"}">${spct(st.median)}</span> <span class="muted">${st.pos}/${st.n}</span>`:'<span class="muted">–</span>'}
@@ -1088,9 +1088,9 @@ function nextReview(iso){const d=new Date(iso+"T00:00:00"),n=new Date(d.getFullY
 function spark(pts,lines){if(!pts||pts.length<2)return"";const v=pts.map(p=>p[1]),lo=Math.min(...v,...lines)*0.95,hi=Math.max(...v,...lines)*1.05,W=300,H=46;
   const x=i=>i/(v.length-1)*W,y=a=>H-(a-lo)/(hi-lo)*H;
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${lines.map(l=>`<line x1="0" x2="${W}" y1="${y(l).toFixed(1)}" y2="${y(l).toFixed(1)}" stroke="var(--red)" stroke-dasharray="3 3" stroke-width="1" opacity=".6"/>`).join("")}<polyline fill="none" stroke="var(--amber)" stroke-width="1.6" points="${v.map((a,i)=>x(i).toFixed(1)+","+y(a).toFixed(1)).join(" ")}"/></svg>`}
-/* VXN cash allocation levels (2026-11-12): fear zone -> % of the account to keep in cash.
-   Percentile-matched to classic VIX bands (VXN runs ~4 points above VIX). Inside a
-   zone the target slides from the high end of the cash range to the low end as VXN rises. */
+/* VHSI cash allocation levels (2026-11-12): fear zone -> % of the account to keep in cash.
+   Percentile-matched to classic VIX bands (VHSI runs ~4 points above VIX). Inside a
+   zone the target slides from the high end of the cash range to the low end as VHSI rises. */
 const CASH_ZONES=[
   {name:"Extreme fear",tip:"back up the truck + add new cash",lo:35,hi:null,c:[0,5],col:"#6E1520"},
   {name:"Very fearful",tip:"heavily invested",lo:30,hi:35,c:[5,10],col:"#9B1F22"},
@@ -1106,51 +1106,51 @@ function cashZone(vxn){
 function renderCashZones(pf){
   const vxn=VR&&VR.vol&&VR.vol.VXN&&VR.vol.VXN.latest?VR.vol.VXN.latest.value:null;
   const cz=vxn!=null?cashZone(vxn):null;
-  $("czTbl").innerHTML=CASH_ZONES.map(z=>`<div class="cz-row${cz&&cz.z===z?" now":""}" style="background:${z.col}"><div><b>${z.name.toUpperCase()}</b><i>${z.tip}</i></div><div class="lv">${z.lo==null?`VXN &lt; ${z.hi}`:z.hi==null?`VXN &gt; ${z.lo}`:`VXN ${z.lo}–${z.hi}`}</div><div class="cs">${z.c[0]}–${z.c[1]}% cash</div></div>`).join("");
-  if(vxn==null){$("czFlag").innerHTML='<p class="note">Needs vol_regime.json (VXN level).</p>';return}
+  $("czTbl").innerHTML=CASH_ZONES.map(z=>`<div class="cz-row${cz&&cz.z===z?" now":""}" style="background:${z.col}"><div><b>${z.name.toUpperCase()}</b><i>${z.tip}</i></div><div class="lv">${z.lo==null?`VHSI &lt; ${z.hi}`:z.hi==null?`VHSI &gt; ${z.lo}`:`VHSI ${z.lo}–${z.hi}`}</div><div class="cs">${z.c[0]}–${z.c[1]}% cash</div></div>`).join("");
+  if(vxn==null){$("czFlag").innerHTML='<p class="note">Needs vol_regime.json (VHSI level).</p>';return}
   const invested=pf.total_value||pf.stock_value||0, cash=+P.cash||0, total=invested+cash;
   const share=total?cash/total:null, lo=cz.z.c[0]/100, hi=cz.z.c[1]/100;
   let cls="ok", msg;
-  if(!total||!cash&&!invested) msg=`Enter <b>Cash you can deploy</b> at the top${PUBLIC?" and upload your holdings":""} to compare your cash with the VXN zone.`;
-  else if(share>hi){cls="hi";msg=`<b>Too much cash for this level of fear.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VXN ${vxn}). Deploy about <b>${money(cash-cz.target*total)}</b>, through cash-secured puts or staged buys at each stock's Entry - Support price.`;}
-  else if(share<lo){cls="lo";msg=`<b>Not enough cash for this level of fear.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VXN ${vxn}). Build about <b>${money(cz.target*total-cash)}</b> of cash by trimming on strength (the Sell - Resistance level) rather than selling into a dip.`;}
-  else msg=`<b>Your cash is in range.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VXN ${vxn}). No change needed.`;
+  if(!total||!cash&&!invested) msg=`Enter <b>Cash you can deploy</b> at the top${PUBLIC?" and upload your holdings":""} to compare your cash with the VHSI zone.`;
+  else if(share>hi){cls="hi";msg=`<b>Too much cash for this level of fear.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VHSI ${vxn}). Deploy about <b>${money(cash-cz.target*total)}</b>, through cash-secured puts or staged buys at each stock's Entry - Support price.`;}
+  else if(share<lo){cls="lo";msg=`<b>Not enough cash for this level of fear.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VHSI ${vxn}). Build about <b>${money(cz.target*total-cash)}</b> of cash by trimming on strength (the Sell - Resistance level) rather than selling into a dip.`;}
+  else msg=`<b>Your cash is in range.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VHSI ${vxn}). No change needed.`;
   const X=v=>Math.min(100,Math.max(0,v*200))+"%";   // meter shows 0-50% cash
-  $("czFlag").innerHTML=`<div class="tiles" style="margin-bottom:6px">${tile("VXN now",vxn,cz.z.name)}${tile("Your cash",share!=null?pct(share,0):"–",total?`${money(cash)} of ${money(total)}`:"not entered")}${tile("Zone target",`${cz.z.c[0]}–${cz.z.c[1]}%`,`about ${pct(cz.target,0)} at this VXN`)}</div>
+  $("czFlag").innerHTML=`<div class="tiles" style="margin-bottom:6px">${tile("VHSI now",vxn,cz.z.name)}${tile("Your cash",share!=null?pct(share,0):"–",total?`${money(cash)} of ${money(total)}`:"not entered")}${tile("Zone target",`${cz.z.c[0]}–${cz.z.c[1]}%`,`about ${pct(cz.target,0)} at this VHSI`)}</div>
     <div class="cz-meter" title="0% to 50% cash"><span class="band" style="left:${X(lo)};width:calc(${X(hi)} - ${X(lo)})"></span><span class="tg" style="left:${X(cz.target)}"></span>${share!=null&&total?`<span class="you" style="left:${X(share)}"></span>`:""}</div>
     <div class="note" style="margin-top:0;display:flex;justify-content:space-between"><span>0% cash</span><span>green band = zone · tall line = you</span><span>50%</span></div>
     <div class="cz-flag ${cls}">${msg}</div>
-    <p class="note">Cash = the "Cash you can deploy" box at the top (dated ${P.cashAt?dshort(P.cashAt):"–"}); account = your holdings ${money(invested)} + that cash. Cash already securing open puts should be counted as cash here. Levels are a rule of thumb from the VXN chart you shared, not a forecast; not financial advice.</p>`;
+    <p class="note">Cash = the "Cash you can deploy" box at the top (dated ${P.cashAt?dshort(P.cashAt):"–"}); account = your holdings ${money(invested)} + that cash. Cash already securing open puts should be counted as cash here. Levels are carried over from your VHSI chart (VHSI runs at similar levels): a rule of thumb, not a forecast; not financial advice.</p>`;
 }
 function renderMarket(pf){
   try{renderCashZones(pf)}catch(e){console.error("Cash zones:",e)}
-  if(!VR||!VR.vol){$("mkVerdict").innerHTML=`<div class="verdict warn">vol_regime.json is not available yet. Run <b>python generate_vol_regime.py</b> (step 11 of the daily refresh) and publish again.</div>`;return}
+  if(!VR||!VR.vol){$("mkVerdict").innerHTML=`<div class="verdict warn">vol_regime.json is not available yet. Run <b>python generate_vol_regime.py</b> (step 8 of the daily refresh) and publish again.</div>`;return}
   const vx=VR.vol.VXN||{}, vi=VR.vol.VIX||{}, rg=VR.regime;
   // ---- verdict
   let v="";
   if(rg){const e=rg.episode, th=e&&vx.thresholds&&vx.thresholds[String(e.threshold)];
     const f60=th&&th.fading["60"], p60=th&&th.persisting["60"];
-    const hist=th?`After past VXN-${e.threshold} spikes that <b>faded</b> by day 20, the Nasdaq-100 60 sessions later had a median of <b>${spct(f60.median)}</b> (${f60.pos} of ${f60.n} up); after spikes that <b>persisted</b>, <b>${spct(p60.median)}</b> (${p60.pos} of ${p60.n} up).`:"";
-    if(rg.key==="fresh") v=`<b>Fear spike in progress.</b> VXN crossed above <b>${e.threshold}</b> on <b>${dshort(e.date)}</b> at ${e.level} (Nasdaq-100 then ${pct(-e.dd_at_cross,1)} off its high) and is now <b>${e.now}</b>, session ${e.days_since} of 20. ${hist} <b>Decision day ≈ ${dshort(e.decide_date)}</b>: if VXN is below 30 then, the ordinary pattern applies (tilt to high beta); if it is back above 30, the crisis pattern (go defensive). Until then stay balanced and buy in stages.`;
-    else if(rg.key==="risk_on") v=`<b>Spike faded: risk-on.</b> VXN crossed above ${e.threshold} on ${dshort(e.date)} and was back under 30 by day 20; now ${e.now}. ${hist} Nasdaq-100 since the crossing: ${spct(e.ret_since)}.`;
-    else if(rg.key==="defensive") v=`<b>Fear is persisting: defensive.</b> VXN crossed above ${e.threshold} on ${dshort(e.date)} and is still ${e.now}; ${pct(e.share_above_persist,0)} of sessions since were at 30+. ${hist}`;
-    else if(rg.key==="late_rally") v=`<b>Calm and near the highs: rotate toward low beta.</b> VXN is ${rg.vxn_now} and the Nasdaq-100 is ${pct(-rg.ndx_from_high,1)} off its 1-year high (3 months: ${spct(rg.ndx_3m)}). This is the time to move part of your high-beta gains into the low-beta list, before the next dip rather than during it.`;
-    else v=`<b>No fear spike in play.</b> VXN ${rg.vxn_now}, Nasdaq-100 ${pct(-rg.ndx_from_high,1)} off its 1-year high. Keep a balanced mix and follow the scoreboard.`;
+    const hist=th?`After past VHSI-${e.threshold} spikes that <b>faded</b> by day 20, the Hang Seng Index 60 sessions later had a median of <b>${spct(f60.median)}</b> (${f60.pos} of ${f60.n} up); after spikes that <b>persisted</b>, <b>${spct(p60.median)}</b> (${p60.pos} of ${p60.n} up).`:"";
+    if(rg.key==="fresh") v=`<b>Fear spike in progress.</b> VHSI crossed above <b>${e.threshold}</b> on <b>${dshort(e.date)}</b> at ${e.level} (Hang Seng Index then ${pct(-e.dd_at_cross,1)} off its high) and is now <b>${e.now}</b>, session ${e.days_since} of 20. ${hist} <b>Decision day ≈ ${dshort(e.decide_date)}</b>: if VHSI is below 30 then, the ordinary pattern applies (tilt to high beta); if it is back above 30, the crisis pattern (go defensive). Until then stay balanced and buy in stages.`;
+    else if(rg.key==="risk_on") v=`<b>Spike faded: risk-on.</b> VHSI crossed above ${e.threshold} on ${dshort(e.date)} and was back under 30 by day 20; now ${e.now}. ${hist} Hang Seng Index since the crossing: ${spct(e.ret_since)}.`;
+    else if(rg.key==="defensive") v=`<b>Fear is persisting: defensive.</b> VHSI crossed above ${e.threshold} on ${dshort(e.date)} and is still ${e.now}; ${pct(e.share_above_persist,0)} of sessions since were at 30+. ${hist}`;
+    else if(rg.key==="late_rally") v=`<b>Calm and near the highs: rotate toward low beta.</b> VHSI is ${rg.vxn_now} and the Hang Seng Index is ${pct(-rg.ndx_from_high,1)} off its 1-year high (3 months: ${spct(rg.ndx_3m)}). This is the time to move part of your high-beta gains into the low-beta list, before the next dip rather than during it.`;
+    else v=`<b>No fear spike in play.</b> VHSI ${rg.vxn_now}, Hang Seng Index ${pct(-rg.ndx_from_high,1)} off its 1-year high. Keep a balanced mix and follow the scoreboard.`;
   }
-  $("mkVerdict").innerHTML=`<div class="verdict ${rg&&(rg.key==="defensive"||rg.key==="fresh")?"warn":"ok"}">${v||"No VXN data."}</div>`;
+  $("mkVerdict").innerHTML=`<div class="verdict ${rg&&(rg.key==="defensive"||rg.key==="fresh")?"warn":"ok"}">${v||"No VHSI data."}</div>`;
   // ---- tiles
   const lv=(o,name,lines)=>o.latest?tile(name,o.latest.value,`${dshort(o.latest.date)} · ${o.index}${spark(o.spark,lines)}`):tile(name,"–",esc(o.error||"no data"));
-  $("mkTiles").innerHTML=lv(vx,"VXN (Nasdaq fear)",[31,35])+lv(vi,"VIX (S&P fear)",[25,30])+
-    (rg?tile("Nasdaq-100 vs 1-yr high",spct(rg.ndx_from_high),`3 months: ${spct(rg.ndx_3m)}`):"")+
+  $("mkTiles").innerHTML=lv(vx,"VHSI (HK fear)",[31,35])+lv(vi,"VHSI vs HSTECH",[25,30])+
+    (rg?tile("Hang Seng Index vs 1-yr high",spct(rg.ndx_from_high),`3 months: ${spct(rg.ndx_3m)}`):"")+
     (rg?tile("This month's mix",`${rg.high_beta_pct} / ${rg.low_beta_pct}`,`high beta / low beta · ${RG[rg.key].name}<div class="mix"><i class="hb" style="width:${rg.high_beta_pct}%"></i><i class="lb" style="width:${rg.low_beta_pct}%"></i></div>`):"");
   // ---- study table
   const rows=[];
-  for(const [k,o] of [["VXN",vx],["VIX",vi]]) for(const t of Object.keys(o.thresholds||{})){const s=o.thresholds[t],c=s.current;
+  for(const [k,o] of [["VHSI → HSI",vx],["VHSI → HSTECH",vi]]) for(const t of Object.keys(o.thresholds||{})){const s=o.thresholds[t],c=s.current;
     rows.push(`<tr><td><b>${k} &gt; ${t}</b><br><span class="muted">${s.events.length} spikes since ${(o.first||"").slice(0,4)}</span></td><td>${statCell(s.from_cross["30"])}</td><td>${statCell(s.from_cross["60"])}</td><td>${statCell(s.from_cross["90"])}</td><td>${statCell(s.fading["60"])}</td><td>${statCell(s.persisting["60"])}</td><td>${c?`<span class="chip ${c.phase==="persisting"?"r":c.phase==="fading"?"g":"a"}">${c.phase} · ${dshort(c.date)}</span>`:'<span class="muted">–</span>'}</td></tr>`);}
   $("mkStudy").innerHTML=`<thead><tr><th>Trigger</th><th>30 sessions</th><th>60</th><th>90</th><th>Fading → 60</th><th>Persisting → 60</th><th>Now</th></tr></thead><tbody>${rows.join("")}</tbody>`;
-  $("mkStudyNote").innerHTML=`Index move after the day fear first closed above the line: <b>median</b> and <b>how many were up</b>. VXN is judged on the Nasdaq-100, VIX on the S&amp;P 500. <b>Fading / Persisting</b> uses only what you would know at the time: ${VR.decide_day} sessions after the crossing, was fear back below its line (VXN 30, VIX 25) or still above? Those returns start on that day. A new spike counts only if the last one was ${VR.cooldown}+ sessions earlier. Few events per row, so treat as tendencies, not odds.`;
+  $("mkStudyNote").innerHTML=`Index move after the day fear first closed above the line: <b>median</b> and <b>how many were up</b>. "VHSI → HSI" rows measure the Hang Seng Index after the spike, "VHSI → HSTECH" rows measure Hang Seng TECH. <b>Fading / Persisting</b> uses only what you would know at the time: ${VR.decide_day} sessions after the crossing, was fear back below its line (30 for the HSI rows, 25 for the HSTECH rows) or still above? Those returns start on that day. A new spike counts only if the last one was ${VR.cooldown}+ sessions earlier. Few events per row, so treat as tendencies, not odds.`;
   const ev=(vx.thresholds||{})["35"];
-  if(ev) $("mkEvents").innerHTML=`<details class="ev"><summary>All ${ev.events.length} VXN &gt; 35 spikes</summary><div class="scroll"><table><thead><tr><th>Crossed</th><th>VXN</th><th>NDX off high</th><th>30</th><th>60</th><th>90</th><th>Day 20</th></tr></thead><tbody>${ev.events.slice().reverse().map(e=>`<tr><td>${e.date}</td><td>${e.level}</td><td>${spct(e.dd)}</td><td class="${e.r30>=0?"pos":"neg"}">${spct(e.r30)}</td><td class="${e.r60>=0?"pos":"neg"}">${spct(e.r60)}</td><td class="${e.r90>=0?"pos":"neg"}">${spct(e.r90)}</td><td>${e.persisting==null?'<span class="muted">pending</span>':e.persisting?'<span class="neg">persisting</span>':'<span class="pos">fading</span>'}</td></tr>`).join("")}</tbody></table></div></details>`;
+  if(ev) $("mkEvents").innerHTML=`<details class="ev"><summary>All ${ev.events.length} VHSI &gt; 35 spikes</summary><div class="scroll"><table><thead><tr><th>Crossed</th><th>VHSI</th><th>HSI off high</th><th>30</th><th>60</th><th>90</th><th>Day 20</th></tr></thead><tbody>${ev.events.slice().reverse().map(e=>`<tr><td>${e.date}</td><td>${e.level}</td><td>${spct(e.dd)}</td><td class="${e.r30>=0?"pos":"neg"}">${spct(e.r30)}</td><td class="${e.r60>=0?"pos":"neg"}">${spct(e.r60)}</td><td class="${e.r90>=0?"pos":"neg"}">${spct(e.r90)}</td><td>${e.persisting==null?'<span class="muted">pending</span>':e.persisting?'<span class="neg">persisting</span>':'<span class="pos">fading</span>'}</td></tr>`).join("")}</tbody></table></div></details>`;
   // ---- rotation rule + your portfolio
   $("mkRules").innerHTML=`<thead><tr><th>Market state</th><th>High / low beta</th></tr></thead><tbody>${RG_ORDER.map(k=>`<tr class="${rg&&rg.key===k?"now":""}"><td>${RG[k].name}<br><span class="muted" style="font-family:var(--font-body)">${RG[k].when}. ${RG[k].why}</span></td><td>${RG_MIX[k]} / ${100-RG_MIX[k]}</td></tr>`).join("")}</tbody>`;
   const R=VR.rotation, B=R&&R.betas||{};
@@ -1175,14 +1175,14 @@ function renderMarket(pf){
   if(R){const bw=R.biweekly||{}, ch=(a,d)=>(a&&a.length?` · <span class="pos">in: ${a.join(", ")}</span>`:"")+(d&&d.length?` · <span class="neg">out: ${d.join(", ")}</span>`:"");
     const nxt=bw.next_rotation?new Date(bw.next_rotation+"T00:00:00"):null, dueIn=nxt?Math.ceil((nxt-new Date(D.as_of_session+"T00:00:00"))/864e5):null;
     const when=bw.rotated_on?`Picked <b>${dshort(bw.rotated_on)}</b> · next rotation <b>${nxt?dshort(bw.next_rotation):"–"}</b>${dueIn!=null?` (${dueIn<=0?"due at the next refresh":dueIn+" days"})`:""}`:"";
-    $("mkRotS").innerHTML=`${when}${ch(bw.added_stocks,bw.dropped_stocks)}. Every ${bw.rotate_days||14} days the 8 low-beta stocks (beta 0.1–0.8, steady, above the 200-day, no semis) with the best <b>6-month return</b> are re-picked from ${R.pool_size||"the"} eligible stocks; in between, the list stays put. In a 4-year test this pick averaged <b>+2.5%</b> over the next 3 months vs <b>+2.0%</b> for all eligible low-beta stocks (ahead 54% of the time): a small edge, not a forecast.`;
-    $("mkRotE").innerHTML=`${when}${ch(bw.added_etfs,bw.dropped_etfs)}. All low-beta ETFs ranked by 6-month return; the top 5 are marked <span class="chip g">in</span>. <b>Unlike stocks, ranking ETFs did not help</b> in the test (top 5 +3.1% vs +3.4% for holding them all over the next 3 months), so spread ETF money across several rather than chasing the top one.`;
+    $("mkRotS").innerHTML=`${when}${ch(bw.added_stocks,bw.dropped_stocks)}. Every ${bw.rotate_days||14} days the 8 low-beta stocks (beta 0.1–0.8, steady, above the 200-day, no semis) with the best <b>6-month return</b> are re-picked from ${R.pool_size||"the"} eligible stocks; in between, the list stays put. This momentum rule was tested on US stocks only, <b>not yet on Hong Kong data</b>: treat it as a sensible default, not a measured edge.`;
+    $("mkRotE").innerHTML=`${when}${ch(bw.added_etfs,bw.dropped_etfs)}. All low-beta ETFs ranked by 6-month return; the top 5 are marked <span class="chip g">in</span>. In the US test ranking ETFs did not help, so spread ETF money across several rather than chasing the top one.`;
     $("mkLowS").innerHTML=tbl(R.low_beta_stocks); $("mkLowE").innerHTML=tbl(R.etf_pool||R.low_beta_etfs,true);
     $("mkScreen").innerHTML=R.low_beta_screen.length?`<b>Next in line</b> (ranks ${(R.low_beta_stocks||[]).length+1}+, could enter at the next rotation): ${R.low_beta_screen.map(x=>`<span class="chip">${esc(x.t)} β${x.beta.toFixed(2)} 6m ${spct(x.r6,0)}</span>`).join(" ")}`:"";
     const hb=[...R.high_beta_etfs,...R.high_beta_screen.filter(x=>!R.high_beta_etfs.some(y=>y.t===x.t))];
     $("mkHigh").innerHTML=`<b>High-beta side</b> (for risk-on months): ${hb.map(x=>`<span class="chip ${x.r6>=0?"g":"r"}">${esc(x.t)} β${x.beta.toFixed(1)} ${spct(x.r6,0)}</span>`).join(" ")}`;}
-  else $("mkLowS").innerHTML=`<tbody><tr><td class="muted">Rotation lists need winrate_price_cache.pkl on the PC.</td></tr></tbody>`;
-  $("mkFoot").innerHTML=`Beta = how much a stock moved per 1% move in SPY over the last year (1.0 = same as the market). "Buy zone" = at or below its middle Bollinger band, your usual entry. Sources: ${Object.entries(VR.sources||{}).map(([k,s])=>`${k.replace("_IDX"," index")}: ${esc(s)}`).join(" · ")}. Built ${esc(VR.generated_at)}. Historical tendencies, not a forecast; not financial advice.`;
+  else $("mkLowS").innerHTML=`<tbody><tr><td class="muted">Rotation lists need hk_price_cache.pkl on the PC (built by generate_dip_watch.py).</td></tr></tbody>`;
+  $("mkFoot").innerHTML=`Beta = how much a stock moved per 1% move in the Tracker Fund (2800, the Hang Seng Index) over the last year (1.0 = same as the market). "Buy zone" = at or below its middle Bollinger band, your usual entry. Sources: ${Object.entries(VR.sources||{}).map(([k,s])=>`${({VXN:"Fear gauge",VXN_IDX:"Hang Seng Index",VIX:"Fear gauge (HSTECH rows)",VIX_IDX:"Hang Seng TECH"})[k]||k}: ${esc(s)}`).join(" · ")}. Built ${esc(VR.generated_at)}. Historical tendencies, not a forecast; not financial advice.`;
 }
 function render(){
   const top=topRowsAt(D.watch_dates.length-1), pf=currentPortfolio(), held=new Set(pf.holdings.map(h=>h.ticker));
@@ -1227,7 +1227,7 @@ function boot([pick,dash]){
   sync();addEventListener("resize",sync);if(window.ResizeObserver)new ResizeObserver(sync).observe(ctl)})();
 const get=f=>fetch(f+"?v="+Date.now(),{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error(f+" "+r.status);return r.json()});
 const valP=window.Valuation?Valuation.load():Promise.resolve();  // for the Valuation buttons
-Promise.all([get("pick_tracker_data.json"),get(PUBLIC?"public_data.json":"dashboard_data.json"),Promise.resolve({tickers:{}}),valP,get("dip_watch_data.json").catch(()=>null),Promise.resolve(null)   /* HK: section 0 not built yet */])
+Promise.all([get("pick_tracker_data.json"),get(PUBLIC?"public_data.json":"dashboard_data.json"),Promise.resolve({tickers:{}}),valP,get("dip_watch_data.json").catch(()=>null),get("vol_regime.json").catch(()=>null)])
   .then(([pick,dash,val,,dw,vr])=>{V=val.tickers||{};DW=dw;VR=vr;boot([pick,dash])})
   .catch(err=>{$("meta").textContent="Could not load data: "+err.message+". Run the daily pipeline and publish again.";});
 })();

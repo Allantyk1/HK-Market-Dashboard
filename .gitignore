@@ -11,5 +11,6 @@
 !lookahead.html
 !pick_tracker_data.json
 !dip_watch_data.json
+!vol_regime.json
 !history/
 !history/*.json
