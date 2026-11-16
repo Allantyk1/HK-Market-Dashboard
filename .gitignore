@@ -1,0 +1,11 @@
+# This folder's GitHub repo is PUBLIC (GitHub Pages). Ignore EVERYTHING by
+# default and allow only the dashboard files, so code, spreadsheets, logs or
+# anything personal can never be pushed by accident (even with "git add .").
+*
+!.gitignore
+!.nojekyll
+!index.html
+!manifest.json
+!public_data.json
+!history/
+!history/*.json
