@@ -1232,5 +1232,6 @@ Promise.all([get("pick_tracker_data.json"),get(PUBLIC?"public_data.json":"dashbo
   .catch(err=>{$("meta").textContent="Could not load data: "+err.message+". Run the daily pipeline and publish again.";});
 })();
 </script>
+<script src="hk_names.js"></script>
 </body>
 </html>
