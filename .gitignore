@@ -7,5 +7,9 @@
 !index.html
 !manifest.json
 !public_data.json
+!tracker.html
+!lookahead.html
+!pick_tracker_data.json
+!dip_watch_data.json
 !history/
 !history/*.json

@@ -1,0 +1,1236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>HK Look-ahead Strategy · Market Desk</title>
+<script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('market-desk-theme')==='light'?'light':'dark')}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  /* Look-ahead Strategy (added 2026-10-17). Sibling of tracker.html: same tokens and type.
+     Reads dashboard_data.json + pick_tracker_data.json + valuation_data.json - no new
+     pipeline step. Holds portfolio figures, so it is linked from index.html only. */
+  :root{
+    --bg:#0B1220; --panel:#111B2E; --panel-2:#0E1729; --line:#1E2C46;
+    --ink:#E7ECF5; --ink-dim:#8FA0BE; --ink-faint:#5A6A87;
+    --amber:#E3A63E; --amber-soft:#3A2D16;
+    --green:#3FBF7F; --green-soft:#173A2B; --red:#E0596B; --red-soft:#3D1F28;
+    --blue:#6FA8FF; --blue-soft:#18294A;
+    --font-display:'IBM Plex Sans Condensed','IBM Plex Sans',Arial Narrow,sans-serif;
+    --font-body:'IBM Plex Sans',system-ui,sans-serif;
+    --font-data:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+    color-scheme:dark;
+  }
+  :root[data-theme="light"]{
+    --bg:#F4F5F8; --panel:#FFFFFF; --panel-2:#ECEEF3; --line:#DDE1EA;
+    --ink:#101827; --ink-dim:#51607A; --ink-faint:#8994A8;
+    --amber:#B6791A; --amber-soft:#F6EAD3;
+    --green:#1C8A57; --green-soft:#DDF2E6; --red:#C93B54; --red-soft:#FBE1E6;
+    --blue:#2C62C9; --blue-soft:#E2EBFB;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 16px 56px}
+  @media (min-width:1400px){.wrap{max-width:1500px}}   /* wide screens: same width as the Market Desk (2026-11-12) */
+  header.top{padding-block:22px 14px;display:flex;flex-wrap:wrap;gap:8px 24px;align-items:flex-end;justify-content:space-between}
+  .back-btn{display:inline-flex;align-items:center;gap:6px;margin:0 0 10px;padding:7px 12px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);font:500 12px var(--font-data);letter-spacing:.04em;text-decoration:none}
+  .back-btn:hover{border-color:var(--amber);color:var(--amber)}
+  .eyebrow{font-family:var(--font-data);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin:0 0 4px}
+  h1{font-family:var(--font-display);font-size:30px;line-height:1.05;margin:0;letter-spacing:-.01em}
+  .meta{font-size:12px;color:var(--ink-dim);display:flex;flex-wrap:wrap;gap:4px 16px}
+  .meta b{color:var(--ink);font-weight:500}
+  .controls{border-block:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:10px 22px;align-items:flex-end}
+  .ctl{display:flex;flex-direction:column;gap:4px}
+  .lbl{font-family:var(--font-data);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+  .ctl input[type=number]{font:500 14px var(--font-data);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 10px;width:150px}
+  [hidden]{display:none!important}
+  .jump{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto;align-self:center}
+  .jump a{font:500 11.5px var(--font-body);color:var(--ink-dim);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;text-decoration:none;white-space:nowrap}
+  .jump a:hover{color:var(--amber);border-color:var(--amber)}
+  section.desk{scroll-margin-top:calc(var(--ctl-h,0px) + 8px)}
+  #pnlTbl tr.q td{font-weight:600} #pnlTbl tr.ytd td{font-weight:700;background:var(--red-soft)} #pnlTbl tr.ytd.up td{background:var(--green-soft)}
+  #pnlItems tr.mon td{background:var(--panel-2);cursor:pointer;font-family:var(--font-body);font-weight:600}
+  #pnlItems tr.mon td .muted{font-weight:400}
+  #pnlItems th.sort{cursor:pointer} #pnlItems th.sort[aria-sort]{color:var(--amber)}
+  .tag.div{color:var(--blue);border-color:var(--blue)}
+  #pfGridTbl input{font:500 13px var(--font-data);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:5px 8px;width:100%;min-width:90px}
+  #pfGridTbl td{padding:3px 6px} #pfGridTbl input:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+  .ra{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr);gap:12px;margin-bottom:12px}
+  @media (max-width:980px){.ra{grid-template-columns:minmax(0,1fr)}}
+  .ra .panel h3 .n{font:600 11px var(--font-data);color:var(--amber);margin-right:6px}
+  .ra ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-dim)} .ra li{margin:4px 0} .ra li b{color:var(--ink)}
+  .ra table td,.ra table th{padding:5px 6px} .ra table td:first-child{white-space:normal}
+  .ra .better{color:var(--green)} .ra .worse{color:var(--red)}
+  .upl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+  .upl .btn{font:600 12px var(--font-body);color:var(--bg);background:var(--amber);border:0;border-radius:9px;padding:8px 14px;cursor:pointer}
+  .upl .btn.ghost{background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line)}
+  .upl .btn:hover{filter:brightness(1.08)} .upl .btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  .upl label.chk{font-size:12px;color:var(--ink-dim);display:flex;gap:6px;align-items:center}
+  .upl-status{font-size:12px;color:var(--ink-dim);margin-top:8px;line-height:1.5}
+  .upl-status.err{color:var(--red)} .upl-status b{color:var(--ink)}
+  .empty-pf{padding:22px;text-align:center;color:var(--ink-dim);font-size:13px}
+  .asof{font:500 10.5px var(--font-data);color:var(--ink-faint);min-height:13px}
+  .asof.stale{color:var(--amber)}
+  .ctl input.stale{border-color:var(--amber)}
+  .ctl input:focus-visible,.seg button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  .seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:2px;flex-wrap:wrap}
+  .seg button{font:500 12px var(--font-body);color:var(--ink-dim);background:none;border:0;border-radius:7px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+  .seg button[aria-pressed="true"]{background:var(--amber);color:var(--bg)}
+  section.desk{margin-top:30px}
+  .desk-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin-bottom:6px}
+  .desk-head .idx{font-family:var(--font-data);font-size:12px;color:var(--amber)}
+  h2{font-family:var(--font-display);font-size:21px;margin:0}
+  h3{font:600 13px var(--font-body);margin:0 0 8px}
+  .lede{color:var(--ink-dim);max-width:76ch;margin:0 0 14px;font-size:13px}
+  .lede b{color:var(--ink)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .tile .k{font-family:var(--font-data);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .tile .v{font-family:var(--font-data);font-size:24px;font-weight:600;margin-top:2px}
+  .tile .s{font-size:11px;color:var(--ink-dim)}
+  .verdict{border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.55}
+  .verdict.warn{background:var(--amber-soft);color:var(--ink)} .verdict.warn b{color:var(--amber)}
+  .verdict.ok{background:var(--green-soft)} .verdict.ok b{color:var(--green)}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th{font-family:var(--font-data);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:500;text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-family:var(--font-data);font-variant-numeric:tabular-nums;vertical-align:top}
+  th:first-child,td:first-child{text-align:left}
+  td.l,th.l{text-align:left}
+  td.why{white-space:normal;min-width:240px;font:400 12px var(--font-body);color:var(--ink-dim);text-align:left}
+  .muted{color:var(--ink-faint)} .pos{color:var(--green)} .neg{color:var(--red)}
+  .tk{font-weight:600;font-family:var(--font-data)}
+  .co{display:block;font:400 11px var(--font-body);color:var(--ink-faint);max-width:170px;overflow:hidden;text-overflow:ellipsis}
+  .act{display:inline-block;font:700 10px var(--font-data);letter-spacing:.04em;border-radius:5px;padding:2px 7px;white-space:nowrap}
+  .act.buy{background:var(--green);color:var(--bg)}
+  .act.dip{background:var(--green-soft);color:var(--green);border:1px solid var(--green)}
+  .act.trim{background:var(--amber);color:var(--bg)}
+  .act.exit{background:var(--red-soft);color:var(--red);border:1px solid var(--red)}
+  .act.hold{background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line)}
+  .act.wait{background:var(--panel-2);color:var(--ink-faint);border:1px dashed var(--line)}
+  /* Picks today: click the number to list the stocks (2026-11-09) */
+  .pk-btn{font:600 12.5px var(--font-data);color:var(--amber);background:none;border:1px solid var(--line);border-radius:6px;padding:2px 9px;cursor:pointer}
+  .pk-btn:hover,.pk-btn[aria-expanded="true"]{border-color:var(--amber);background:var(--panel-2)}
+  .pk-btn:disabled{color:var(--ink-faint);cursor:default;border-color:transparent}
+  tr.pk-row>td{background:var(--panel-2);text-align:left;white-space:normal;padding:10px 14px}
+  .pk-h{font:600 11px var(--font-body);color:var(--ink-dim);margin:2px 0 6px}
+  .pk-h b{color:var(--ink)}
+  .pk-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .pk{display:inline-flex;gap:6px;align-items:baseline;font:600 11.5px var(--font-data);border-radius:6px;padding:3px 8px;background:var(--panel);border:1px solid var(--line)}
+  .pk i{font-style:normal;font-weight:500}
+  .pk.up{background:var(--green-soft);border-color:transparent} .pk.up i{color:var(--green)}
+  .pk i.mv{color:var(--ink-dim)} .pk i.mv b{font-weight:600} .pk i.mv b.pos{color:var(--green)} .pk i.mv b.neg{color:var(--red)} .pk i.mv u{text-decoration:none;color:var(--ink-faint);font-size:10px;margin-right:2px}
+  .pk.dn{background:var(--red-soft);border-color:transparent} .pk.dn i{color:var(--red)}
+  .act.keep{background:var(--blue-soft);color:var(--blue);border:1px solid var(--blue)}
+  .tag{font:600 9.5px var(--font-data);color:var(--ink-dim);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:4px;white-space:nowrap}
+  .tag.earn{color:var(--amber);border-color:var(--amber)}
+  .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+  @media (max-width:860px){.grid2{grid-template-columns:minmax(0,1fr)}}
+  .plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+  .month{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .month h3{font:600 15px var(--font-display);letter-spacing:.01em}
+  .month h3 small{font:500 11px var(--font-data);color:var(--ink-faint);margin-left:6px}
+  .month ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-dim)}
+  .month li{margin:5px 0}
+  .month li b{color:var(--ink);font-weight:600}
+  .bar{height:10px;border-radius:5px;background:var(--panel-2);overflow:hidden;display:flex}
+  .bar i{display:block;height:100%}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--ink-dim);margin-top:6px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .note{font-size:11.5px;color:var(--ink-faint);line-height:1.6;margin-top:10px}
+  /* Dip watch (2026-10-23) */
+  .tag.low{color:var(--red);border-color:var(--red)} .tag.held{color:var(--blue);border-color:var(--blue)} .tag.chk{color:var(--ink-faint);border-style:dashed}
+  .dw-stale{color:var(--amber)}
+  /* Dip cards (2026-10-23): same layout idea as the LEAPS screener card */
+  .dw-bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:10px}
+  .dw-bar .btn{font:600 12px var(--font-body);color:var(--ink-dim);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:6px 12px;cursor:pointer}
+  .dw-search input{font:500 13px var(--font-body);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 10px;width:240px;max-width:100%}
+  .dw-search input:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+  @media (max-width:600px){.dw-search,.dw-search input{width:100%}}
+  .dcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+  @media (max-width:400px){.dcards{grid-template-columns:minmax(0,1fr)}}
+  .dcard{background:var(--panel);border:1.5px solid var(--green);border-radius:16px;padding:14px;min-width:0;display:flex;flex-direction:column;gap:10px}
+  .dcard.avoid{border-color:var(--red)} .dcard.chk{border-color:var(--line);border-style:dashed}
+  .dc-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+  .dc-head .tkr{font:700 20px var(--font-data);letter-spacing:-.01em}
+  .dc-head .px{font:700 20px var(--font-data);text-align:right}
+  .dc-sub{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--ink-dim);margin-top:2px}
+  .dc-sub .co2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .pill{display:inline-block;font:700 10px var(--font-data);letter-spacing:.05em;border-radius:999px;padding:3px 9px;vertical-align:4px;margin-left:6px}
+  .pill.dip{background:var(--green-soft);color:var(--green)} .pill.avoid{background:var(--red-soft);color:var(--red)} .pill.chk{background:var(--panel-2);color:var(--ink-faint)}
+  .dc-chart svg{display:block;width:100%;height:auto}
+  .dc-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:10.5px;color:var(--ink-dim)}
+  .dc-leg i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:3px;margin-right:4px}
+  .dc-leg i.box{height:8px;border:0;background:var(--red-soft);vertical-align:0}
+  .dc-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .dc-t{background:var(--panel-2);border-radius:10px;padding:7px 9px;min-width:0}
+  .dc-t .k{font:500 9.5px var(--font-data);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint)}
+  .dc-t .v{font:600 16px var(--font-data);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dc-t .s{font-size:10.5px;color:var(--ink-dim);line-height:1.3}
+  .dc-chips{display:flex;flex-wrap:wrap;gap:5px}
+  /* Section 0: market turn alert + monthly rotation (2026-11-12) */
+  .mk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:12px}
+  @media (min-width:1100px){.mk-grid.study{grid-template-columns:1.45fr 1fr}}
+  #mkLowS td:nth-child(-n+2),#mkLowS th:nth-child(-n+2),#mkLowE td:nth-child(-n+2),#mkLowE th:nth-child(-n+2){text-align:left}
+  .mix{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:6px 0 4px;background:var(--panel-2)}
+  .mix i{display:block;height:100%} .mix .hb{background:var(--amber)} .mix .lb{background:var(--blue)}
+  .rg-tbl td,.rg-tbl th{white-space:normal} .rg-tbl tr.now td{background:var(--amber-soft)} .rg-tbl tr.now td:first-child{font-weight:600;color:var(--amber)}
+  .spark{display:block;width:100%;height:46px}
+  /* VXN cash allocation levels (2026-11-12) */
+  .cz{display:grid;gap:6px;margin-top:8px}
+  .cz-row{display:grid;grid-template-columns:1.6fr 1fr 1fr;align-items:center;gap:8px;border-radius:10px;padding:9px 12px;color:#fff;position:relative;opacity:.55}
+  .cz-row b{font-size:13px;letter-spacing:.04em} .cz-row i{display:block;font-size:11px;opacity:.85}
+  .cz-row .lv,.cz-row .cs{font-family:var(--font-data);font-weight:600;text-align:right}
+  .cz-row.now{opacity:1;outline:2px solid var(--ink);outline-offset:1px}
+  .cz-row.now::after{content:"◀ VXN now";position:absolute;right:-2px;top:-9px;font:600 10px var(--font-data);background:var(--ink);color:var(--bg);border-radius:5px;padding:1px 6px}
+  .cz-flag{border-radius:12px;padding:12px 14px;margin-top:10px;font-size:13px;line-height:1.55;border:1px solid var(--line)}
+  .cz-flag.ok{background:var(--green-soft)} .cz-flag.hi{background:var(--amber-soft)} .cz-flag.lo{background:var(--red-soft)}
+  .cz-meter{position:relative;height:10px;border-radius:5px;background:var(--panel-2);margin:8px 0 2px}
+  .cz-meter .band{position:absolute;top:0;bottom:0;background:var(--green);opacity:.45;border-radius:5px}
+  .cz-meter .you{position:absolute;top:-4px;width:3px;height:18px;background:var(--ink);border-radius:2px}
+  .cz-meter .tg{position:absolute;top:-2px;width:2px;height:14px;background:var(--green)}
+  details.ev summary{cursor:pointer;font-size:12px;color:var(--ink-dim);margin-top:8px}
+  .chip{font-size:11px;border-radius:7px;padding:3px 8px;background:var(--panel-2);color:var(--ink-dim)}
+  .chip.g{background:var(--green-soft);color:var(--green)} .chip.r{background:var(--red-soft);color:var(--red)} .chip.a{background:var(--amber-soft);color:var(--amber)}
+  .dc-h{font:600 12px var(--font-body);margin:2px 0 -2px}
+  .dc-h small{font-weight:400;color:var(--ink-faint)}
+  .dc-rec{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+  .dc-rec div{background:var(--panel-2);border-radius:9px;padding:6px 4px;text-align:center}
+  .dc-rec .k{font:500 10px var(--font-data);color:var(--ink-faint)}
+  .dc-rec .v{font:600 13.5px var(--font-data);margin:2px 0}
+  .dc-rec .s{font-size:9.5px;color:var(--ink-dim);line-height:1.25}
+  .dc-eps{width:100%;font-size:11px}
+  .dc-eps th{font-size:9px;padding:3px 4px} .dc-eps td{padding:4px;font-size:11px}
+  @media (max-width:420px){.dc-eps th{letter-spacing:0;padding:3px 2px}.dc-eps td{padding:4px 2px;font-size:10.5px}}
+  .dc-foot{font-size:10.5px;color:var(--ink-faint);line-height:1.45}
+  footer{margin-top:34px;font-size:11px;color:var(--ink-faint);line-height:1.6}
+  @media (max-width:600px){h1{font-size:25px}.co{max-width:110px}}
+  /* Frozen headings (2026-10-17): the settings bar sticks to the top, each section's
+     title sticks under it, and long tables scroll inside their own box so their
+     column headings and Stock column stay visible. --ctl-h / --dh are set by JS. */
+  .controls{position:sticky;top:0;z-index:6;background:var(--bg)}
+  .desk-head{position:sticky;top:var(--ctl-h,0px);z-index:5;background:var(--bg);padding-block:8px;margin-bottom:0}
+  .scroll.freeze{overflow:auto;max-height:max(320px,calc(100vh - var(--ctl-h,0px) - var(--dh,44px) - 40px))}
+  .scroll.freeze thead th{position:sticky;top:0;z-index:2;background:var(--panel);box-shadow:inset 0 -1px 0 var(--line);border-bottom:0}
+  .scroll.freeze th:first-child,.scroll.freeze td:first-child{position:sticky;left:0;z-index:1;background:var(--panel);box-shadow:inset -1px 0 0 var(--line)}
+  .scroll.freeze thead th:first-child{z-index:3}
+  @media (max-width:600px){.controls{position:static}.desk-head{top:0}.scroll.freeze{max-height:75vh}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <style>.page-nav{display:inline-flex;gap:4px;margin:0 0 10px;padding:3px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line);flex-wrap:wrap}.page-nav a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9px;color:var(--ink-dim);font:500 12px var(--font-data);letter-spacing:.04em;text-decoration:none;white-space:nowrap}.page-nav a:hover{color:var(--amber)}.page-nav a[aria-current="page"]{background:var(--amber);color:#111;cursor:default}.page-nav a:focus-visible{outline:2px solid var(--amber);outline-offset:2px}</style><nav class="page-nav" aria-label="Market Desk pages"><a href="index.html" data-nav="desk" title="Back to HK Market Desk">‹ HK Market Desk</a><a href="tracker.html" data-nav="tracker" title="Pick Tracker: how past recommendations performed">Tracker</a><a href="lookahead.html" data-nav="look" title="Look-ahead Strategy: what to change over the next 3 months" aria-current="page">Look-ahead</a></nav><script>(function(){if(!/(^|[?&])from=public\b/.test(location.search))return;document.querySelectorAll(".page-nav a").forEach(function(a){a.href=a.dataset.nav==="desk"?"index.html":a.getAttribute("href")})})()</script>
+      <p class="eyebrow">Look-ahead strategy</p>
+      <h1 id="title">Next 3 months</h1>
+    </div>
+    <div class="meta" id="meta">Loading…</div>
+  </header>
+
+  <div class="controls">
+    <div class="ctl"><label class="lbl" for="cash">Cash you can deploy (HKD)</label>
+      <input type="number" id="cash" min="0" step="100" inputmode="decimal"><span id="cashAsOf" class="asof"></span></div>
+    <div class="ctl"><span class="lbl">Fund buys from</span>
+      <div class="seg" id="useTrim"><button type="button" data-v="0" title="Only the cash entered">Cash only</button><button type="button" data-v="1" title="Cash plus trimming positions above the max per stock">+ Trims</button><button type="button" data-v="2" title="Cash, trims, and selling every REVIEW EXIT position in full">+ Trims &amp; exits</button></div></div>
+    <div class="ctl"><span class="lbl">Max per stock</span>
+      <div class="seg" id="cap"><button type="button" data-v="10">10%</button><button type="button" data-v="15">15%</button><button type="button" data-v="20">20%</button></div></div>
+    <nav class="jump" aria-label="Jump to section"><a href="#s1">1 Scoreboard</a><a href="#s2">2 Portfolio</a><a href="#s3">3 Buy list</a><a href="#s4">4 Month plan</a><a href="#sdw">5 Dip watch</a><a href="#s5" id="jump5" hidden>6 Actual P&amp;L</a></nav>
+  </div>
+
+  <section class="desk" id="smk" hidden>
+    <div class="desk-head"><span class="idx">0</span><h2>Market turn alert &amp; monthly rotation</h2></div>
+    <p class="lede">Big jumps in market fear (<b>VXN</b> for the Nasdaq-100, <b>VIX</b> for the S&amp;P 500) have often come near turning points. Below: what happened after every past spike, which kind of spike we are in now, and how to split your money between <b>high-beta growth</b> (moves more than the market) and <b>low-beta quality</b> stocks and ETFs (moves less) at each <b>monthly review</b>.</p>
+    <div id="mkVerdict"></div>
+    <div class="tiles" id="mkTiles"></div>
+    <div class="mk-grid">
+      <div class="panel"><h3>VXN cash allocation levels</h3>
+        <p class="note" style="margin-top:0">Deploy cash as fear rises (wheel strategy / cash-secured puts). Within a zone, slide toward the low end of the cash range as VXN rises.</p>
+        <div class="cz" id="czTbl"></div></div>
+      <div class="panel"><h3>Your cash vs VXN</h3><div id="czFlag"></div></div>
+    </div>
+    <div class="mk-grid study">
+      <div class="panel"><h3>After a fear spike: what happened next</h3><div class="scroll"><table id="mkStudy"></table></div>
+        <p class="note" id="mkStudyNote"></p><div id="mkEvents"></div></div>
+      <div class="panel"><h3>Monthly rotation rule</h3><div class="scroll"><table class="rg-tbl" id="mkRules"></table></div>
+        <div id="mkPf"></div></div>
+    </div>
+    <div class="mk-grid">
+      <div class="panel"><h3>Low-beta quality stocks · bi-weekly rotation</h3><p class="note" id="mkRotS" style="margin-top:0"></p><div class="scroll"><table id="mkLowS"></table></div><p class="note" id="mkScreen"></p></div>
+      <div class="panel"><h3>Low-beta ETFs · bi-weekly ranking</h3><p class="note" id="mkRotE" style="margin-top:0"></p><div class="scroll"><table id="mkLowE"></table></div><p class="note" id="mkHigh"></p></div>
+    </div>
+    <p class="note" id="mkFoot"></p>
+  </section>
+
+  <section class="desk" id="s1">
+    <div class="desk-head"><span class="idx">1</span><h2>Which rule is working: the scoreboard</h2></div>
+    <p class="lede">Every past session in the tracker log is replayed. For each rule, take the stocks it would have picked that day and compare their move <b>2 and 4 weeks later</b> with the average of every tracked stock (the "market"). The page then <b>recommends the rule that is leading</b>: if the Top 30 leads, the plan is a plain rotation into the Top 30; if another rule leads, the plan switches to it; if nothing beats the market, it says so. This re-runs every day as the log grows.</p>
+    <div id="verdict"></div>
+    <div class="panel"><div class="scroll freeze"><table id="ruleTbl"></table></div>
+      <p class="note" id="ruleNote"></p></div>
+  </section>
+
+  <section class="desk" id="s2">
+    <div class="desk-head"><span class="idx">2</span><h2>Your portfolio vs the plan</h2></div>
+    <div class="panel" style="margin-bottom:12px" id="uplPanel">
+      <h3 id="uplTitle">Check your own portfolio</h3>
+      <div class="upl">
+        <div class="seg" id="pfSource" hidden><button type="button" data-v="desk">Market Desk portfolio</button><button type="button" data-v="upload">My uploaded file</button></div>
+        <input type="file" id="pfFile" accept=".csv,.xlsx,.xls,text/csv" hidden>
+        <button type="button" class="btn" id="pfPick">Upload portfolio (CSV or Excel)</button>
+        <button type="button" class="btn ghost" id="pfType">Type holdings in</button>
+        <button type="button" class="btn ghost" id="pfTemplateX">Excel template</button>
+        <button type="button" class="btn ghost" id="pfTemplate">CSV template</button>
+        <button type="button" class="btn ghost" id="pfClear" hidden>Remove file</button>
+        <label class="chk"><input type="checkbox" id="pfRemember"> Remember on this device</label>
+      </div>
+      <div id="pfGrid" hidden style="margin-top:12px">
+        <div class="scroll" style="max-height:340px;overflow:auto"><table id="pfGridTbl"></table></div>
+        <div class="upl" style="margin-top:10px"><button type="button" class="btn" id="pfGridUse">Use these holdings</button>
+          <button type="button" class="btn ghost" id="pfGridAdd">Add 5 rows</button><button type="button" class="btn ghost" id="pfGridCancel">Cancel</button>
+          <span class="upl-status" style="margin:0">Ticker and shares are required; average cost is optional but needed for P/L and risk lines.</span></div>
+      </div>
+      <div class="upl-status" id="pfStatus">Columns needed: <b>Ticker</b>, <b>Shares</b>, <b>Average cost</b> (optional: Price, Name). Moomoo / broker exports with Symbol, Quantity, Average Cost or Diluted Cost also work. HK codes can be written 700, 00700, HK.00700 or 0700.HK. Your file is read <b>only in this browser</b>: it is never sent to a server or saved in the published data.</div>
+    </div>
+    <p class="lede" id="pfLede"></p>
+    <div class="tiles" id="pfTiles"></div>
+    <div class="panel" style="margin-bottom:12px">
+      <h3>Where your money is</h3>
+      <div class="bar" id="mixBar"></div>
+      <div class="legend" id="mixLegend"></div>
+    </div>
+    <div class="panel"><div class="scroll freeze"><table id="holdTbl"></table></div>
+      <p class="note">Rules: <b>TRIM</b> = bigger than the max-per-stock setting. <b>REVIEW EXIT</b> = closed below the 3 × ATR risk line from your average cost, a SELL signal, or a KDJ Exit. <b>KEEP</b> = picked today by the recommended rule or the runner-up. <b>DON'T ADD</b> = flagged NO DIP – DON'T CHASE. Option positions and cash-secured puts are not included.</p></div>
+  </section>
+
+  <section class="desk" id="s3">
+    <div class="desk-head"><span class="idx">3</span><h2 id="buyTitle">Buy list</h2></div>
+    <p class="lede" id="buyLede"></p>
+    <div id="realign"></div>
+    <div class="tiles" id="buyTiles"></div>
+    <div class="panel"><div class="scroll freeze"><table id="buyTbl"></table></div>
+      <p class="note">Sizing splits the budget equally across the <b>BUY</b> rows from the recommended rule (most 6), capped at the max-per-stock setting, in two entries: the latest close and Support (or one ATR lower if it is already under Support). Runner-up and 2-week rows are shown for reference and are not funded. Stocks with a SELL signal or NO DIP – DON'T CHASE are not funded. Earnings inside the next 10 days are flagged: a gap can skip straight past your entry.</p></div>
+  </section>
+
+  <section class="desk" id="s4">
+    <div class="desk-head"><span class="idx">4</span><h2>Month-by-month plan</h2></div>
+    <p class="lede">A checklist, not a forecast. Each month lists the earnings dates that matter for your holdings and buy list, and the checkpoints where this page should be re-read. The Top 30 changes every day, so re-check every two weeks.</p>
+    <div class="plan" id="plan"></div>
+  </section>
+
+  <section class="desk" id="sdw">
+    <div class="desk-head"><span class="idx">5</span><h2>Dip watch &amp; momentum</h2></div>
+    <p class="lede" id="dwLede">Loading…</p>
+    <div class="tiles" id="dwTiles"></div>
+    <div class="panel" style="margin-bottom:12px">
+      <h3>Dip watch: 15%+ under the 20-day high</h3>
+      <div class="dw-bar">
+        <div class="dw-search"><input type="search" id="dwSearch" list="dwList" placeholder="Search ticker or company" aria-label="Search dip stocks" autocomplete="off"><datalist id="dwList"></datalist></div>
+        <div class="seg" id="dwView"><button type="button" data-v="cards">Cards</button><button type="button" data-v="table">Table</button></div>
+        <div class="seg" id="dwSort"><button type="button" data-v="dd">Biggest dip</button><button type="button" data-v="rate">Best bounce record</button><button type="button" data-v="held">Held first</button></div>
+        <label class="chk" style="font-size:12px;color:var(--ink-dim);display:flex;gap:6px;align-items:center"><input type="checkbox" id="dwHideLow"> Hide 52-week lows</label>
+      </div>
+      <div class="upl-status" id="dwSearchNote" hidden style="margin:-2px 0 10px"></div>
+      <div class="dcards" id="dwCards"></div>
+      <div class="dw-bar" style="margin:10px 0 0"><button type="button" class="btn" id="dwMore" hidden></button></div>
+      <div class="scroll freeze" id="dwTblWrap"><table id="dwTbl"></table></div>
+      <p class="note" id="dwNote"></p></div>
+    <div class="panel">
+      <h3>Gap-up continuation: last 10 sessions</h3>
+      <div class="scroll freeze"><table id="gapTbl"></table></div>
+      <p class="note" id="gapNote"></p></div>
+  </section>
+
+  <section class="desk" id="s5" hidden>
+    <div class="desk-head"><span class="idx">6</span><h2>Actual P&amp;L: month, quarter, year to date</h2></div>
+    <p class="lede" id="pnlLede"></p>
+    <div class="tiles" id="pnlTiles"></div>
+    <div class="grid2" style="margin-bottom:12px">
+      <div class="panel"><h3>Realized P&amp;L by month</h3><div style="position:relative;height:260px"><canvas id="pnlBar"></canvas></div></div>
+      <div class="panel"><h3>Cumulative realized P&amp;L, year to date</h3><div style="position:relative;height:260px"><canvas id="pnlCum"></canvas></div></div>
+    </div>
+    <div class="panel" style="margin-bottom:12px"><div class="scroll"><table id="pnlTbl"></table></div></div>
+    <div class="upl" style="justify-content:space-between;margin:18px 0 8px"><h3 style="margin:0;font-size:15px">Closed trades &amp; dividends</h3><button type="button" class="btn ghost" id="pnlCollapse" style="font:600 12px var(--font-body);color:var(--ink-dim);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:7px 12px;cursor:pointer">Collapse all months</button></div>
+    <div class="panel"><div class="scroll freeze"><table id="pnlItems"></table></div>
+      <p class="note" id="pnlNote"></p></div>
+  </section>
+
+  <footer>Built from dashboard_data.json, pick_tracker_data.json, valuation_data.json and dip_watch_data.json, so it refreshes with the daily pipeline. Rules come from your own backtests (backtest_box_momentum.py, 2026-10-12) and the replay in section 1. Past patterns over a few months of data do not guarantee future results. Not financial advice.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+const money=(v,dp=0)=>v==null||isNaN(v)?"–":(v<0?"−HK$":"HK$")+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const pct=(v,dp=1)=>v==null||isNaN(v)?"–":(v*100).toFixed(dp)+"%";
+const spct=(v,dp=1)=>v==null||isNaN(v)?"–":(v>=0?"+":"−")+Math.abs(v*100).toFixed(dp)+"%";
+const cls=v=>v==null?"muted":v>=0?"pos":"neg";
+const dshort=iso=>new Date(iso+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const tile=(k,v,s)=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+
+/* ---- constants: same rules as tracker.html (keep in sync) ---- */
+const SR_TOP=30, SR_MONTHS=3, SR_MIN_WHITE=2, SR_MAX_WHITE=6, SR_MIN_GREEN=2, ND_MAX_GREEN=1;
+const CASH_STALE_DAYS=7, RISK_ATR=3, MAX_BUYS=6, EARN_SOON_DAYS=10, HORIZONS=[10,20];
+
+const P={cash:null,useTrim:"1",cap:15,dwView:"cards",dwSort:"dd",dwHideLow:false};
+// Friends' view (?from=public) keeps its own settings (cash, uploaded holdings) apart from
+// the owner's view, so cash typed on the owner's page never shows on the public page and
+// the other way round, even in the same browser (both live on one site). 2026-11-14
+const PREFS_KEY=/(^|[?&])from=public\b/.test(location.search)?"lookaheadPrefs_public":"lookaheadPrefs";
+try{Object.assign(P,JSON.parse(localStorage.getItem(PREFS_KEY)||"{}"))}catch(e){}
+const save=()=>{try{localStorage.setItem(PREFS_KEY,JSON.stringify(P))}catch(e){}};
+
+let D,T,V={}, ALL=new Map(), BOX={}, DW=null, DWIDX=[];
+
+/* ---- tracker helpers (copied from tracker.html) ---- */
+function cutoffFor(dateStr,months){const a=new Date(dateStr+"T00:00:00");a.setMonth(a.getMonth()-months);return isoLocal(a)}
+function isoLocal(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}  /* local date, not UTC: toISOString shifted dates by a day in Malaysia (UTC+8) */
+function topRowsAt(i,n=SR_TOP){
+  const d=D.watch_dates[i], cut=cutoffFor(d,SR_MONTHS), first={};
+  for(const e of D.events){ if(e.src!=="top20"||e.d<cut||e.d>d) continue; if(!first[e.t]||e.d<first[e.t].d) first[e.t]=e; }
+  const ranked=[]; for(const t in first){const w=D.watch[t]; const c=w?w.c[i]:null; if(c!=null&&first[t].rp>0) ranked.push([t,c/first[t].rp-1,first[t]]);}
+  ranked.sort((a,b)=>b[1]-a[1]); const m=new Map(); ranked.slice(0,n).forEach(([t,p,e],k)=>m.set(t,{rank:k+1,pct:p,d:e.d})); return m;
+}
+function weeklyAvg(w,i){const lo=Math.max(0,i-5),v=[];for(let j=lo;j<i;j++)if(w.se[j]!=null)v.push(w.se[j]);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null}
+function boxStates(t){if(BOX[t])return BOX[t];const w=D.watch[t],n=D.watch_dates.length,o=new Array(n).fill(null);for(let i=0;i<n;i++){const a=weeklyAvg(w,i),c=w.c[i];if(a!=null&&c!=null)o[i]=a>c?1:0}return BOX[t]=o}
+function streakAt(st,i){let k=i,wRun=null,gRun=0,curG=0,wCut=false,gCut=false;const run=v=>{let m=0;while(k>=0&&st[k]===v){m++;k--}return m};
+  const atStart=()=>k<0||st[k]==null;
+  if(st[i]===0){wRun=run(0);wCut=atStart();if(!wCut){gRun=run(1);gCut=atStart()}} else if(st[i]===1){curG=run(1);wRun=0} return {wRun,gRun,curG,wCut,gCut}}
+const isSR=(s,inTop)=>inTop&&!s.wCut&&s.wRun>=SR_MIN_WHITE&&s.wRun<=SR_MAX_WHITE&&s.gRun>=SR_MIN_GREEN;
+const isND=s=>!s.wCut&&!s.gCut&&s.wRun>=1&&s.gRun<=ND_MAX_GREEN;
+const fwd=(t,i,h)=>{const c=D.watch[t]?.c;if(!c)return null;const a=c[i],b=c[i+h];return a&&b?b/a-1:null};
+const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+
+/* ---- 1. rule scoreboard ---- */
+/* Each rule returns the tickers it would pick on session i, using only data known that day. */
+let RANK=[], EVD={}, N=0, MKT={};
+function prepRules(){
+  N=D.watch_dates.length; RANK=[];
+  for(let i=0;i<N;i++){const d=D.watch_dates[i],cut=cutoffFor(d,SR_MONTHS),first={};
+    for(const e of D.events){if(e.src!=="top20"||e.d<cut||e.d>d)continue;if(!first[e.t]||e.d<first[e.t].d)first[e.t]=e}
+    const r=[];for(const t in first){const c=D.watch[t]?.c[i];if(c!=null&&first[t].rp>0)r.push({t,p:c/first[t].rp-1,d:first[t].d})}
+    r.sort((a,b)=>b.p-a.p);RANK.push(r)}
+  EVD={}; for(const e of D.events){(EVD[e.src+"|"+e.d]=EVD[e.src+"|"+e.d]||[]).push(e.t)}
+  // Dip watch flags (dip_watch_data.json) lined up with the tracker's session dates
+  const pos={}; (DW&&DW.dates||[]).forEach((d,k)=>pos[d]=k); DWIDX=D.watch_dates.map(d=>pos[d]??null);
+}
+const dwFlag=(t,key,i)=>{const k=DWIDX[i];if(k==null||!DW)return false;const f=DW.flags[t];return !!(f&&f[key]&&f[key][k]==="1")};
+const dwPick=(key,i,back=1)=>{if(!DW)return [];const out=[];for(const t in DW.flags){if(!D.watch[t])continue;for(let j=Math.max(0,i-back+1);j<=i;j++)if(dwFlag(t,key,j)){out.push(t);break}}return out};
+const recentEv=(src,i,k=5)=>{const s=new Set();for(let j=Math.max(0,i-k+1);j<=i;j++)for(const t of (EVD[src+"|"+D.watch_dates[j]]||[]))s.add(t);return [...s]};
+const ret5=(t,i)=>{const c=D.watch[t].c;return i>=5&&c[i]&&c[i-5]?c[i]/c[i-5]-1:null};
+const RULES=[
+  {k:"top30",name:"Top 30 strong stocks",desc:"Section 1 top 30: Top 20 picks, 3 months, ranked by % to date",pick:i=>RANK[i].slice(0,30).map(r=>r.t)},
+  {k:"trigger",name:"Buy trigger (last 5 days)",desc:"Your section 2 trigger: green day, recovery, under Mid BB, BUY signal, 2:1 reward/risk",pick:i=>recentEv("trigger",i)},
+  {k:"pullback",name:"Strong picks after a pullback",desc:"Top 20 picks (3 months) now 10–25% below their day-1 price",pick:i=>RANK[i].filter(r=>r.p<=-0.10&&r.p>=-0.25).map(r=>r.t)},
+  {k:"t20dip",name:"Top 20, weakest week",desc:"Today's Top 20, the 10 with the worst 5-day move",pick:i=>Object.keys(D.watch).filter(t=>D.watch[t].t20[i]==="1"&&ret5(t,i)!=null).sort((a,b)=>ret5(a,i)-ret5(b,i)).slice(0,10)},
+  {k:"laggards",name:"Worst 30 picks",desc:"Bottom 30 of section 1 (Top 20 picks, 3 months)",pick:i=>RANK[i].slice(-30).map(r=>r.t)},
+  {k:"sr",name:"STRONG REBOUND",desc:"Top 30 stock, 2–6 white days right after 2+ green",short:true,pick:i=>RANK[i].slice(0,30).map(r=>r.t).filter(t=>D.watch[t]&&isSR(streakAt(boxStates(t),i),true))},
+  {k:"buy5",name:"New BUY signal (last 5 days)",desc:"Signal newly turned BUY",pick:i=>recentEv("buy",i)},
+  {k:"t20",name:"Today's Top 20",desc:"The screener's Top 20 that day",pick:i=>Object.keys(D.watch).filter(t=>D.watch[t].t20[i]==="1")},
+  {k:"dip15",dw:true,name:"Dip 15%+, not at a 52-week low",desc:"15%+ under its 20-day high but not a new 52-week low (section 5)",pick:i=>dwPick("dip",i)},
+  {k:"rebound30",dw:true,minStocks:1,minDistinct:10,name:"Rebound ≥30% (bounce record)",desc:"15%+ dip, and 70%+ of its own past 15%+ dips ran ≥30% off the low (5+ dips). Same list as the dashboard's Rebound tab; only 1–4 picks a day, so a window counts from 1 pick",pick:i=>dwPick("r30",i)},
+  {k:"gapup",dw:true,name:"Gap-up continuation (last 5 days)",desc:"Opened 4%+ above the prior close on 2× volume and closed up (section 5)",pick:i=>dwPick("gap",i,5)},
+  {k:"low52",dw:true,name:"At a new 52-week low",desc:"Closed below every close of the past year",avoid:true,pick:i=>dwPick("low",i)},
+  {k:"movers",name:"Best 1-month movers",desc:"30 biggest 20-session gainers, all stocks",avoid:true,pick:i=>i<20?[]:Object.keys(D.watch).filter(t=>{const c=D.watch[t].c;return c[i]&&c[i-20]}).sort((a,b)=>{const ca=D.watch[a].c,cb=D.watch[b].c;return cb[i]/cb[i-20]-ca[i]/ca[i-20]}).slice(0,30)},
+  {k:"deep",name:"Deep discount",desc:"7+ of the last 10 days below the weekly average",avoid:true,pick:i=>Object.keys(D.watch).filter(t=>{const st=boxStates(t);if(st[i]==null)return false;let g=0;for(let j=Math.max(0,i-9);j<=i;j++)if(st[j]===1)g++;return g>=7})},
+];
+const MIN_WINDOWS=10, MIN_WIN=0.6, MIN_STOCKS=3;
+function scoreRules(){
+  const tickers=Object.keys(D.watch), mk={};
+  for(const h of [10,20]){mk[h]=[];for(let i=0;i+h<N;i++){mk[h][i]=mean(tickers.map(t=>fwd(t,i,h)).filter(v=>v!=null))}}
+  MKT=mk;
+  for(const R of RULES){
+    R.s={}; R.today=R.pick(N-1);
+    const seen=new Set();
+    for(const h of [10,20]){const diffs=[];
+      for(let i=0;i+h<N;i++){const pk=R.pick(i).filter(t=>fwd(t,i,h)!=null),v=pk.map(t=>fwd(t,i,h));if(v.length>=(R.minStocks??MIN_STOCKS)&&mk[h][i]!=null){diffs.push(mean(v)-mk[h][i]);if(h===20)pk.forEach(t=>seen.add(t))}}
+      R.s[h]={avg:mean(diffs),wins:diffs.filter(x=>x>0).length,n:diffs.length};
+    }
+    const a=R.s[20],b=R.s[10];
+    R.eligible=!R.avoid&&!R.short&&a.n>=MIN_WINDOWS&&a.avg>0&&a.wins/a.n>=MIN_WIN&&(b.avg==null||b.avg>-0.01);
+    // rules with only a handful of picks a day can look perfect on one or two lucky
+    // stocks: they may not lead until enough DIFFERENT stocks have been measured
+    R.distinct=seen.size; R.fewStocks=!!R.minDistinct&&R.distinct<R.minDistinct; if(R.fewStocks) R.eligible=false;
+    // dip / gap rules can only lead when dip_watch_data.json covers today's session
+    R.stale=!!R.dw&&DWIDX[N-1]==null; if(R.stale) R.eligible=false;
+    R.shortOk=R.short&&b.n>=5&&b.avg>0&&b.wins/b.n>=MIN_WIN;
+  }
+  const el=RULES.filter(r=>r.eligible).sort((x,y)=>y.s[20].avg-x.s[20].avg);
+  return {leader:el[0]||null,runner:el[1]||null,short:RULES.find(r=>r.shortOk)||null};
+}
+/* Picks today detail (2026-11-09): today's list, plus how the most recent fully
+   measured batch did (picked h sessions ago: 4 weeks, or 2 weeks for 2-week rules). */
+function picksDetail(R){
+  const h=R.short?10:20, i0=N-1;
+  // 2026-11-14: show both the 1-day move (since the previous session) and the 5-day move
+  // (the rule's pick window); the chip colour follows the 1-day move.
+  const mvK=(t,k)=>{const c=D.watch[t]?.c;return c&&i0>=k&&c[i0]&&c[i0-k]?c[i0]/c[i0-k]-1:null};
+  const today=R.today.map(t=>({t,m1:mvK(t,1),m5:mvK(t,5)})).sort((a,b)=>(b.m5??-9)-(a.m5??-9));
+  const mvTxt=(lbl,v)=>`<i class="mv"><u>${lbl}</u><b class="${v==null?"":v>=0?"pos":"neg"}">${spct(v)}</b></i>`;
+  const d1=i0>=1?dshort(D.watch_dates[i0-1]):"–", d5=i0>=5?dshort(D.watch_dates[i0-5]):"–";
+  const up1=today.filter(x=>x.m1!=null&&x.m1>=0).length;
+  let html=`<div class="pk-h">Picked on <b>${dshort(D.watch_dates[i0])}</b> (${today.length}) · <b>1d</b> = since ${d1} close · <b>5d</b> = since ${d5} close · chip colour = 1d (${up1} up, ${today.length-up1} down) · sorted by 5d</div><div class="pk-list">`+
+    today.map(x=>`<span class="pk ${x.m1==null?"":x.m1>=0?"up":"dn"}">${esc(x.t)}${mvTxt("1d",x.m1)}${mvTxt("5d",x.m5)}</span>`).join("")+`</div>`;
+  // latest past session with picks whose h-session outcome is known
+  let j=-1; for(let i=N-1-h;i>=0;i--){if(R.pick(i).length){j=i;break}}
+  if(j<0) return html+`<div class="pk-h">No earlier picks old enough to measure yet.</div>`;
+  const m=MKT[h][j], rows=R.pick(j).map(t=>({t,ex:fwd(t,j,h)!=null&&m!=null?fwd(t,j,h)-m:null})).sort((a,b)=>(b.ex??-9)-(a.ex??-9));
+  const beat=rows.filter(x=>x.ex!=null&&x.ex>0).length, known=rows.filter(x=>x.ex!=null).length;
+  html+=`<div class="pk-h">How the last measured batch did: picked <b>${dshort(D.watch_dates[j])}</b>, ${h===20?"4":"2"} weeks later vs market · <b>${beat} of ${known}</b> outperformed</div><div class="pk-list">`+
+    rows.map(x=>`<span class="pk ${x.ex==null?"":x.ex>0?"up":"dn"}">${esc(x.t)}<i>${spct(x.ex)}</i></span>`).join("")+`</div>`;
+  return html;
+}
+function renderScoreboard(SB){
+  const L=SB.leader, top=RULES[0];
+  const why=r=>`it beat the market 4 weeks later in <b>${r.s[20].wins} of ${r.s[20].n}</b> windows, by <b>${spct(r.s[20].avg)}</b> on average (2 weeks: ${spct(r.s[10].avg)})`;
+  let v;
+  if(L&&L.k==="top30") v=`<div class="verdict ok"><b>Recommended strategy: rotate into the Top 30.</b> The Top 30 is the leading rule: ${why(L)}. Section 3 is the plain rotation plan.</div>`;
+  else if(L) v=`<div class="verdict warn"><b>Recommended strategy: switch to "${esc(L.name)}".</b> The Top 30 is not beating the market (4 weeks: ${spct(top.s[20].avg)}, better in ${top.s[20].wins} of ${top.s[20].n} windows). The leading rule is <b>${esc(L.name)}</b>: ${why(L)}.${SB.runner?` Runner-up: <b>${esc(SB.runner.name)}</b> (${spct(SB.runner.s[20].avg)}, ${SB.runner.s[20].wins} of ${SB.runner.s[20].n}).`:""} Section 3 is built from it. The page switches back to the Top 30 automatically once the Top 30 leads.</div>`;
+  else v=`<div class="verdict warn"><b>No rule is reliably beating the market right now.</b> None passed the test (at least ${MIN_WINDOWS} four-week windows, ahead in ${Math.round(MIN_WIN*100)}%+ of them, positive on average). The honest plan is to <b>hold cash or a broad index fund such as VOO</b> and wait, rather than forcing trades.</div>`;
+  v+=`<p class="note" style="margin-top:-4px">Sample: ${N} sessions from ${dshort(D.watch_dates[0])} to ${dshort(D.watch_dates[N-1])}. Four-week windows overlap heavily, and one market regime can favour one rule, so treat a lead under ~20 windows as provisional.</p>`;
+  $("verdict").innerHTML=v;
+  const status=r=>r===SB.leader?'<span class="act buy">LEADING</span>':r===SB.runner?'<span class="act dip">RUNNER-UP</span>':r.shortOk?'<span class="act keep">2-WEEK IDEA</span>':r.fewStocks?`<span class="act wait" title="Results so far come from only ${r.distinct} different stocks; needs ${r.minDistinct}+ before it can lead">ON TRIAL · ${r.distinct} STOCKS</span>`:r.stale?'<span class="act wait" title="dip_watch_data.json is older than today\'s session: run generate_dip_watch.py">DATA OUT OF DATE</span>':r.avoid?'<span class="act exit">AVOID</span>':r.eligible?'<span class="act hold">PASSES</span>':(r.s[20].n<MIN_WINDOWS&&!r.short?'<span class="act wait">TOO LITTLE DATA</span>':'<span class="act wait">NOT BEATING</span>');
+  const order=r=>r===SB.leader?0:r===SB.runner?1:r.shortOk?2:r.avoid?9:3;
+  const rows=[...RULES].sort((a,b)=>order(a)-order(b)||(b.s[20].avg??-9)-(a.s[20].avg??-9));
+  $("ruleTbl").innerHTML=`<thead><tr><th>Rule</th><th class="l">Status</th><th>2 wks vs market</th><th>4 wks vs market</th><th>Windows ahead (4 wks)</th><th>Picks today</th></tr></thead><tbody>`+
+    rows.map(r=>`<tr><td><span class="tk">${esc(r.name)}</span><span class="co" style="max-width:340px;white-space:normal">${esc(r.desc)}</span></td><td class="l">${status(r)}</td>
+      <td class="${cls(r.s[10].avg)}">${spct(r.s[10].avg)}</td><td class="${cls(r.s[20].avg)}">${spct(r.s[20].avg)}</td>
+      <td>${r.s[20].n?`${r.s[20].wins} / ${r.s[20].n}`:"–"}</td><td><button type="button" class="pk-btn" data-k="${r.k}" aria-expanded="false" ${r.today.length?"":"disabled"} title="Show the stocks">${r.today.length}</button></td></tr>`).join("")+`</tbody>`;
+  // Picks today: click the number to open the stock list under that row (2026-11-09)
+  $("ruleTbl").onclick=e=>{const b=e.target.closest(".pk-btn");if(!b||b.disabled)return;
+    const tr=b.closest("tr"),open=tr.nextElementSibling&&tr.nextElementSibling.classList.contains("pk-row");
+    $("ruleTbl").querySelectorAll("tr.pk-row").forEach(x=>x.remove());
+    $("ruleTbl").querySelectorAll(".pk-btn").forEach(x=>x.setAttribute("aria-expanded","false"));
+    if(open)return;
+    const R=RULES.find(x=>x.k===b.dataset.k);
+    tr.insertAdjacentHTML("afterend",`<tr class="pk-row"><td colspan="6">${picksDetail(R)}</td></tr>`);
+    b.setAttribute("aria-expanded","true");};
+  $("ruleNote").innerHTML=`<b>Pass test</b>: ${MIN_WINDOWS}+ four-week windows, ahead of the market in ${Math.round(MIN_WIN*100)}%+ of them, positive on average, and not below −1% at 2 weeks. The best passing rule is <b>LEADING</b>. STRONG REBOUND is judged on 2 weeks only (its tested edge). <b>ON TRIAL</b>: the rule picks so few stocks that its record so far rests on fewer than 10 different stocks, so it is shown but cannot lead until more have been measured. <b>AVOID</b> rows are shown as warnings and never recommended. "Market" = equal-weight average of every tracked stock.`;
+}
+
+/* ---- per-stock state today ---- */
+function stateToday(t,top){
+  const n=D.watch_dates.length, w=D.watch[t]; if(!w) return null;
+  const st=boxStates(t), s=streakAt(st,n-1), tr=top.get(t), info=D.tickers[t]||{};
+  const last=w.c[n-1], bid=weeklyAvg(w,n), lb=info.lb, mb=info.mb, half=lb!=null&&mb!=null?lb+(mb-lb)/2:null;
+  return {t,info,last,bid,lb,mb,half,top:tr,sr:isSR(s,!!tr),nd:isND(s),s,green:st[n-1]===1};
+}
+function earnSoon(a){return a&&a.earnings_days!=null&&a.earnings_days>=0&&a.earnings_days<=EARN_SOON_DAYS}
+const earnTag=a=>a&&a.earnings_date?`<span class="tag${earnSoon(a)?" earn":""}" title="Next earnings${a.earnings_estimate?" (estimated)":""}">earn ${dshort(a.earnings_date)}</span>`:"";
+
+/* ---- 2. holdings ---- */
+function holdingPlan(pf,top,SB){
+  const cap=P.cap/100, total=pf.total_value||pf.stock_value||0;
+  return pf.holdings.map(h=>{
+    const a=ALL.get(h.ticker)||{}, st=stateToday(h.ticker,top), v=V[h.ticker];
+    const rl=a.atr14&&h.avg_cost?h.avg_cost-RISK_ATR*a.atr14:null, below=rl!=null&&h.current_price<rl;
+    const w=total?h.market_value/total:h.weight_pct, why=[]; let act="hold", trimSh=0, trimUsd=0;
+    if(w>cap){act="trim";trimUsd=h.market_value-cap*total;trimSh=Math.ceil(trimUsd/h.current_price);
+      why.push(`${pct(w)} of the portfolio, above your ${P.cap}% max. Selling about ${trimSh} shares (${money(trimUsd)}) brings it to ${P.cap}%.`);}
+    const exitWhy=[];
+    if(below) exitWhy.push(`closed below its risk line ${money(rl,2)} (3 × ATR under your ${money(h.avg_cost,2)} cost)`);
+    if(a.signal==="SELL") exitWhy.push("screener signal is SELL");
+    if(a.kdj_action==="Exit") exitWhy.push("KDJ Action says Exit");
+    if(exitWhy.length){ if(act!=="trim") act="exit"; why.push("Review: "+exitWhy.join("; ")+"."); }
+    const inRule=[SB.leader,SB.runner].filter(r=>r&&r.today.includes(h.ticker));
+    if(inRule.length){ if(act==="hold") act="keep"; why.push(`Picked today by ${inRule.map(r=>`"${r.name}"`).join(" and ")}.`); }
+    else if(st&&st.top) why.push(`In today's Top 30 (#${st.top.rank}).`);
+    if(st&&st.sr) why.push("STRONG REBOUND now: the tested 2-week setup.");
+    if(st&&st.nd) why.push("NO DIP – DON'T CHASE: don't add until it dips below its weekly average.");
+    if(v&&v.fair&&!v.warn) why.push(`Valuation ${v.mos>=0?pct(v.mos,0)+" under":pct(-v.mos,0)+" over"} fair value, ${v.quality.grade} quality.`);
+    if(earnSoon(a)) why.push(`Earnings in ${a.earnings_days} days: decide before, not after.`);
+    const dwr=dipRow(h.ticker);
+    if(dwFlag(h.ticker,"low",N-1)) why.push("At a new 52-week low: in the backtest, dips at a new low had no bounce edge. Lean on your risk line rather than hoping for a rebound.");
+    else if(dwr&&!dwr.suspect) why.push(`Dip watch: ${pct(-dwr.dd,0)} under its 20-day high.${dwr.hist&&dwr.hist.n?` It got back half of ${dwr.hist.n} past dips ${pct(dwr.hist.rec,0)} of the time (context only).`:""}`);
+    if(h.inScreener===false) why.push(`Not in the screener, so no signals, Top 30 or risk line. Priced from ${h.priceFrom}.`);
+    if(!why.length) why.push("No rule fired: hold and let the next checkpoint decide.");
+    return {h,a,st,w,act,trimSh,trimUsd,why,rl,below,isExit:exitWhy.length>0};
+  });
+}
+const ACT={buy:["BUY","buy"],dip:["BUY ON DIP","dip"],trim:["TRIM","trim"],exit:["REVIEW EXIT","exit"],hold:["HOLD","hold"],keep:["KEEP","keep"],wait:["WAIT","wait"],nd:["DON'T CHASE","wait"]};
+const actTag=k=>`<span class="act ${ACT[k][1]}">${ACT[k][0]}</span>`;
+
+function renderHoldings(plan,pf,top){
+  const noPf=!plan.length;
+  document.querySelectorAll("#pfTiles,#mixBar,#mixLegend").forEach(e=>e.closest(".panel")?e.closest(".panel").hidden=noPf:e.hidden=noPf);
+  if(noPf){
+    $("pfLede").innerHTML=PUBLIC?"Upload your holdings above to see which ones to keep, trim or review against the plan. Until then, section 3 sizes buys from the cash you enter.":"No holdings found.";
+    $("pfTiles").innerHTML=""; $("holdTbl").innerHTML=`<tbody><tr><td class="empty-pf">No portfolio loaded yet.</td></tr></tbody>`; return;
+  }
+  const total=pf.total_value||0, inTop=plan.filter(p=>p.st&&p.st.top), inTopV=inTop.reduce((s,p)=>s+p.h.market_value,0);
+  const stockV=plan.reduce((s,p)=>s+p.h.market_value,0), big=plan.reduce((m,p)=>p.w>m.w?p:m,{w:0});
+  const nExit=plan.filter(p=>p.act==="exit"||(p.act==="trim"&&p.why.some(x=>x.startsWith("Review")))).length, nTrim=plan.filter(p=>p.act==="trim").length;
+  const nKeep=plan.filter(p=>p.act==="keep"||p.why.some(x=>x.startsWith("Picked today"))).length;
+  $("pfLede").innerHTML=`Each holding is checked against the recommended rule and your own risk rules. <b>${inTop.length} of ${plan.length}</b> holdings are in today's Top 30, and <b>${nKeep}</b> are picked today by the leading or runner-up rule. Over the next three months, <b>concentration</b> and <b>positions that have broken their risk line</b> matter as much as which rule is leading.`;
+  $("pfTiles").innerHTML=[
+    tile("In today's Top 30",pct(total?inTopV/total:0,0),`${money(inTopV)} in ${inTop.length} holdings`),
+    tile("Largest position",big.h?`${esc(big.h.ticker)} ${pct(big.w,0)}`:"–",`your max is ${P.cap}%`),
+    tile("To trim",String(nTrim),`over ${P.cap}% of the portfolio`),
+    tile("To review for exit",String(plan.filter(p=>p.why.some(x=>x.startsWith("Review"))).length),"risk line, SELL or KDJ Exit"),
+    pf.uploaded?tile("Portfolio value",money(pf.total_value),`${plan.length} holdings from ${esc(pf.fileName)}`):tile("Options (not planned here)",money(pf.options_value||0),"LEAPs; CSPs live in CSP_Portfolio.xlsx"),
+  ].join("");
+  // mix bar
+  const groups=[["Top 30",inTopV,"var(--green)"],["Other holdings",stockV-inTopV,"var(--blue)"],["Options",pf.options_value||0,"var(--amber)"]];
+  if(pf.uploaded) groups.pop();   // uploaded files have no options
+  $("mixBar").innerHTML=groups.map(([l,v,c])=>`<i style="width:${total?100*v/total:0}%;background:${c}" title="${l} ${money(v)}"></i>`).join("");
+  $("mixLegend").innerHTML=groups.map(([l,v,c])=>`<span><i style="background:${c}"></i>${l} ${money(v)} (${pct(total?v/total:0,0)})</span>`).join("");
+  const order={exit:0,trim:1,keep:2,hold:3};
+  const rows=[...plan].sort((a,b)=>order[a.act]-order[b.act]||b.w-a.w);
+  $("holdTbl").innerHTML=`<thead><tr><th>Stock</th><th class="l">Action</th><th>Weight</th><th>Price</th><th>Your cost</th><th>P/L</th><th>Risk line</th><th>Signal</th><th class="l">Why</th></tr></thead><tbody>`+
+    rows.map(p=>`<tr><td><span class="tk">${esc(p.h.ticker)}</span>${p.st&&p.st.top?`<span class="tag">TOP 30 #${p.st.top.rank}</span>`:""}${earnTag(p.a)}${window.Valuation?Valuation.button(p.h.ticker):""}<span class="co">${esc(p.h.company||p.a.company||"")}</span></td>
+      <td class="l">${actTag(p.act)}${p.act==="trim"?`<div class="muted" style="margin-top:3px">sell ~${p.trimSh} sh</div>`:""}${p.act==="trim"&&p.why.some(x=>x.startsWith("Review"))?`<div style="margin-top:3px">${actTag("exit")}</div>`:""}</td>
+      <td>${pct(p.w)}</td><td>${money(p.h.current_price,2)}</td><td>${money(p.h.avg_cost,2)}</td><td class="${cls(p.h.gain_pct)}">${spct(p.h.gain_pct)}</td>
+      <td class="${p.below?"neg":""}">${money(p.rl,2)}</td><td>${esc(p.a.signal||"–")}<span class="muted"> ${p.a.matrix_score??""}</span></td><td class="why">${p.why.join(" ")}</td></tr>`).join("")+`</tbody>`;
+}
+
+/* ---- 3. buy list (from the recommended rule) ---- */
+const SHOW_LEAD=20, SHOW_REF=8;
+function buyPlan(top,held,trimCash,SB){
+  const rows=[], seen=new Set(), more=[];
+  const add=(R,role)=>{ if(!R) return;
+    // Top 30 keeps its rank order; other rules are ordered by Matrix Score, then valuation discount
+    const ms=t=>ALL.get(t)?.matrix_score??-9, mos=t=>(V[t]&&V[t].mos!=null&&!V[t].warn)?V[t].mos:-9;
+    const order=R.k==="top30"?R.today:[...R.today].sort((a,b)=>ms(b)-ms(a)||mos(b)-mos(a));
+    const limit=P.showAll?1e9:(role==="lead"?SHOW_LEAD:SHOW_REF); let shown=0, hidden=0;
+    for(const t of order){
+      if(shown>=limit){ if(!held.has(t)&&!seen.has(t)) hidden++; continue; } if(held.has(t)||seen.has(t)) continue;
+      const st=stateToday(t,top); if(!st||st.last==null) continue; seen.add(t);
+      const a=ALL.get(t)||{}, v=V[t], why=[]; let act=role==="lead"?"buy":"wait";
+      if(role==="lead") why.push(R.k==="top30"?`Top 30 #${st.top?.rank}: plain rotation into the leading rule.`:`Picked by the leading rule "${R.name}".`);
+      if(role==="runner") why.push(`Runner-up rule "${R.name}": reference only, not funded.`);
+      if(role==="short") why.push(`STRONG REBOUND: a 2-week idea. Re-check after 10 sessions. Not funded by default.`);
+      if(st.nd){ if(act==="buy") act="nd"; why.push("NO DIP – DON'T CHASE: wait for a green day before buying."); }
+      if(a.signal==="SELL"){ if(act==="buy") act="wait"; why.push("Screener signal is SELL, so not funded."); }
+      if(v&&v.fair&&!v.warn) why.push(`Valuation ${v.mos>=0?pct(v.mos,0)+" under":pct(-v.mos,0)+" over"} fair value, ${v.quality.grade} quality.`);
+      if(v&&v.etf) why.push("ETF (leveraged ETFs lose value in long sideways or falling stretches).");
+      if(earnSoon(a)) why.push(`Earnings in ${a.earnings_days} days: a gap can skip your entry.`);
+      rows.push({t,st,a,v,act,why,role,rule:R}); shown++;
+    }
+    if(hidden) more.push(`${hidden} more from "${R.name}"`);
+  };
+  add(SB.leader,"lead"); add(SB.runner,"runner"); add(SB.short,"short");
+  const funded=rows.filter(r=>r.act==="buy").slice(0,MAX_BUYS);
+  const total=(D._pfTotal||0)+(+P.cash||0), budget=(+P.cash||0)+(P.useTrim!=="0"?trimCash:0);
+  const each=funded.length?Math.min(budget/funded.length,(P.cap/100)*total):0;
+  for(const r of funded){
+    const e1=r.st.last; const e2=r.st.lb!=null&&r.st.lb<e1*0.995?r.st.lb:(r.a.atr14?e1-r.a.atr14:e1*0.95);
+    r.e1=e1; r.e2=e2; r.alloc=each; r.sh1=Math.floor(each/2/e1); r.sh2=Math.floor(each/2/e2);
+    if(r.sh1+r.sh2===0) r.why.push(`Allocation ${money(each)} is less than one share.`);
+  }
+  for(const r of rows.filter(r=>r.act==="buy"&&!funded.includes(r))){r.act="wait";r.why.push(`Beyond the ${MAX_BUYS}-stock limit: next in line.`)}
+  return {list:rows,funded,budget,each,more};
+}
+function renderBuys(bp,trimCash,SB){
+  const {list,funded,budget,each}=bp, L=SB.leader;
+  $("buyTitle").textContent=!L?"Buy list: none recommended":L.k==="top30"?"Buy list: rotate into the Top 30":`Buy list: ${L.name}`;
+  if(!L){
+    const voo=ALL.get("VOO");
+    $("buyLede").innerHTML=`No rule passed the test, so nothing is funded. The fallback is a broad index fund${voo?`: VOO closed at <b>${money(voo.current_price,2)}</b> (Support ${money(voo.support_lower_bb,2)}, Mid BB ${money(voo.middle_bb,2)})`:""}, or simply keeping the cash until a rule leads.${list.length?" The rows below are 2-week ideas only.":""}`;
+  } else
+    $("buyLede").innerHTML=`Stocks picked today by <b>${esc(L.name)}</b> that you don't hold, then the runner-up and 2-week rows for reference. Budget: <b>${money(+P.cash||0)}</b> cash${P.useTrim!=="0"&&trimCash?` + <b>${money(trimCash)}</b> from ${P.useTrim==="2"?"trims and exits":"trims"}`:""} = <b>${money(budget)}</b>, about <b>${money(each)}</b> each across ${funded.length} funded stock${funded.length===1?"":"s"}.`;
+  const cnt=k=>list.filter(r=>r.act===k).length;
+  $("buyTiles").innerHTML=[tile("Funded buys",String(funded.length),L?`from "${esc(L.name)}"`:"no rule leading"),tile("Next in line / reference",String(cnt("wait")),"runner-up, 2-week or over limit"),
+    tile("Don't chase",String(cnt("nd")),"no dip yet"),tile("Budget",money(budget),`${money(each)} each`)].join("");
+  const roleTag=r=>r.role==="lead"?'<span class="tag">LEADING RULE</span>':r.role==="runner"?'<span class="tag">RUNNER-UP</span>':'<span class="tag">2-WEEK</span>';
+  $("buyTbl").innerHTML=`<thead><tr><th>Stock</th><th class="l">Action</th><th>Top 30</th><th>Close</th><th>Bid now</th><th>Ladder ½</th><th>Support</th><th>Plan</th><th class="l">Why</th></tr></thead><tbody>`+
+    (list.length?list.map(r=>`<tr><td><span class="tk">${esc(r.t)}</span>${roleTag(r)}${r.st.info.t20?'<span class="tag">TOP 20</span>':""}${earnTag(r.a)}${window.Valuation?Valuation.button(r.t):""}<span class="co">${esc(r.st.info.co||"")}</span></td>
+      <td class="l">${actTag(r.act==="buy"?"buy":r.act)}</td><td>${r.st.top?`#${r.st.top.rank} <span class="${cls(r.st.top.pct)}">${spct(r.st.top.pct,0)}</span>`:'<span class="muted">–</span>'}</td>
+      <td>${money(r.st.last,2)}</td><td>${money(r.st.bid,2)}</td><td>${money(r.st.half,2)}</td><td>${money(r.st.lb,2)}</td>
+      <td>${r.alloc?`${r.sh1} @ ${money(r.e1,2)}<br>${r.sh2} @ ${money(r.e2,2)}<div class="muted">${money(r.alloc)}</div>`:'<span class="muted">–</span>'}</td>
+      <td class="why">${r.why.join(" ")}</td></tr>`).join(""):`<tr><td colspan="9" class="muted">Nothing to buy from the recommended rule today.</td></tr>`)+
+    (bp.more.length||P.showAll?`<tr><td colspan="9" class="muted" style="text-align:left">${P.showAll?"Showing every pick.":`Hidden to keep the list short: ${bp.more.map(esc).join(" · ")}. Lower Matrix Score / valuation, so further down the queue.`} <button type="button" id="showAllBtn" class="act hold" style="cursor:pointer;margin-left:6px">${P.showAll?"Show fewer":"Show all"}</button></td></tr>`:"")+`</tbody>`;
+  const sa=$("showAllBtn"); if(sa) sa.onclick=()=>{P.showAll=!P.showAll;save();render()};
+}
+
+/* ---- 4. month plan ---- */
+function renderPlan(plan,bp,SB){
+  const asOf=new Date(D.as_of_session+"T00:00:00"), months=[0,1,2].map(k=>new Date(asOf.getFullYear(),asOf.getMonth()+k,1));
+  const ym=d=>isoLocal(d).slice(0,7), name=d=>d.toLocaleDateString("en-US",{month:"long",year:"numeric"});
+  const earn=[]; const seen=new Set();
+  for(const p of plan) if(p.a.earnings_date&&!seen.has(p.h.ticker)){seen.add(p.h.ticker);earn.push({t:p.h.ticker,d:p.a.earnings_date,held:true})}
+  for(const r of bp.funded) if(r.a.earnings_date&&!seen.has(r.t)){seen.add(r.t);earn.push({t:r.t,d:r.a.earnings_date,held:false})}
+  earn.sort((a,b)=>a.d.localeCompare(b.d));
+  const checks=[]; for(let k=14;k<=92;k+=14){const d=new Date(asOf);d.setDate(d.getDate()+k);checks.push(d)}
+  const trims=plan.filter(p=>p.act==="trim"), exits=plan.filter(p=>p.why.some(x=>x.startsWith("Review")));
+  const buys=bp.funded;
+  $("plan").innerHTML=months.map((m,k)=>{
+    const key=ym(m), ev=earn.filter(e=>e.d.slice(0,7)===key && e.d>=D.as_of_session), ck=checks.filter(d=>ym(d)===key);
+    const items=[];
+    if(k===0){
+      if(trims.length) items.push(`<b>Trim</b> ${trims.map(p=>`${esc(p.h.ticker)} (~${p.trimSh} sh)`).join(", ")}: sell into strength, ideally before its earnings.`);
+      if(exits.length) items.push(`<b>Decide on</b> ${exits.map(p=>esc(p.h.ticker)).join(", ")}: below risk line or SELL. Cut, or write down why you're holding.`);
+      if(buys.length) items.push(`<b>Buy</b> ${buys.map(r=>esc(r.t)).join(", ")} in two entries (section 3).`);
+      items.push(`<b>Recommended rule now</b>: ${SB.leader?esc(SB.leader.name):"none (hold cash / index)"}. If section 1 shows a different leader at a checkpoint, switch new buys to it; let existing positions run to their 4-week mark.`);
+    } else if(k===1){
+      items.push(`<b>Post-earnings review</b>: re-run this page once the reports below are out. Holdings that dropped out of the Top 30 and lost their risk line go to the exit list.`);
+      items.push(`<b>Rotate again</b> only into stocks that dipped to their ladder; skip NO DIP names.`);
+    } else {
+      items.push(`<b>Quarter review</b>: compare your P/L since today with the "Market" line in the Pick Tracker.`);
+      items.push(`<b>Re-check the scoreboard</b> in section 1: with ~${D.logged_sessions+40} sessions logged the leader will be much more reliable.`);
+      items.push(`<b>Monthly model review</b>: run monthly_model_review.bat early in the month (the dashboard reminds you).`);
+    }
+    if(ck.length) items.push(`<b>Checkpoints</b>: ${ck.map(d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric"})).join(", ")}`);
+    if(ev.length) items.push(`<b>Earnings</b>: ${ev.map(e=>`${esc(e.t)} ${dshort(e.d)}${e.held?"":" (buy list)"}`).join(" · ")}`);
+    return `<div class="month"><h3>${name(m)}<small>${k===0?"now":k===1?"next month":"month 3"}</small></h3><ul>${items.map(i=>`<li>${i}</li>`).join("")}</ul></div>`;
+  }).join("");
+}
+
+/* ---- uploaded portfolio (added 2026-10-19) ----
+   public.html links here with ?from=public: that mode loads public_data.json
+   (no portfolio) and works only from a file the visitor uploads. The file is
+   parsed in the browser and never leaves it; "Remember on this device" keeps
+   the parsed holdings in localStorage. index.html mode can switch between the
+   Market Desk portfolio and an uploaded file. */
+const PUBLIC=true;   // HK site: always the shared view (no private portfolio file exists)
+const UPKEY=PUBLIC?"lookaheadUpload_public":"lookaheadUpload";   // kept apart per view, like the cash (2026-11-14)
+let UPLOAD=null;   // {fileName, at, rows:[{ticker,shares,cost,price,name}], skipped}
+const norm=h=>String(h??"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const COLS={ticker:["ticker","symbol","code","stock","stockcode","securitycode","tickersymbol","instrument"],
+  shares:["shares","quantity","qty","position","units","holding","holdings","sharesheld","qtyheld","totalquantity"],
+  cost:["avgcost","averagecost","costprice","avgprice","averageprice","dilutedcost","unitcost","costpershare","cost","costbasispershare","purchaseprice","buyprice"],
+  price:["price","currentprice","lastprice","marketprice","current","last","close"],
+  name:["name","company","description","securityname","stockname"]};
+function findCol(headers,key){const H=headers.map(norm);for(const c of COLS[key]){const i=H.indexOf(c);if(i>=0)return i}
+  for(const c of COLS[key]){const i=H.findIndex(h=>h.startsWith(c));if(i>=0)return i}return -1}
+const numOf=v=>{if(v==null)return NaN;if(typeof v==="number")return v;const t=String(v).replace(/[,$\s]/g,"").replace(/^\((.*)\)$/,"-$1");return t===""?NaN:+t};
+function cleanTicker(v){let t=String(v??"").trim().toUpperCase().replace(/\s+/g,"");const hk=t.replace(/^(HK|HKEX|SEHK)[.:]/,"").replace(/\.HK$/,"");if(/^\d{1,5}$/.test(hk)){const n=String(parseInt(hk,10));return (n.length<4?n.padStart(4,"0"):n)+".HK"}t=t.replace(/^US[.:]/,"").replace(/\.US$/,"").replace(/\s+/g,"");if(/^[A-Z]+\.[A-Z]$/.test(t))t=t.replace(".","-");return t}
+function parseCSV(text){const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true; else if(c===","){row.push(f);f=""} else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(f);rows.push(row);row=[];f=""} else f+=c}
+  if(f!==""||row.length){row.push(f);rows.push(row)} return rows.filter(r=>r.some(x=>String(x).trim()!==""))}
+function rowsToHoldings(rows,fileName){
+  // header = first row that has a ticker-like and a shares-like column
+  let hi=rows.findIndex(r=>findCol(r,"ticker")>=0&&findCol(r,"shares")>=0);
+  if(hi<0) throw new Error("couldn't find a Ticker/Symbol column and a Shares/Quantity column");
+  const H=rows[hi], ix={}; for(const k in COLS) ix[k]=findCol(H,k);
+  const out=new Map(); let skipped=0;
+  for(const r of rows.slice(hi+1)){
+    const t=cleanTicker(r[ix.ticker]), sh=numOf(r[ix.shares]);
+    if(!t||!/^(\d{4,5}\.HK|[A-Z][A-Z0-9-]{0,9})$/.test(t)||!(sh>0)){skipped++;continue}
+    const cost=ix.cost>=0?numOf(r[ix.cost]):NaN, price=ix.price>=0?numOf(r[ix.price]):NaN;
+    const prev=out.get(t);   // same ticker twice (e.g. two lots): merge, weighting the cost
+    if(prev){const tot=prev.shares+sh;prev.cost=(isFinite(prev.cost)&&isFinite(cost))?(prev.cost*prev.shares+cost*sh)/tot:(isFinite(prev.cost)?prev.cost:cost);prev.shares=tot;continue}
+    out.set(t,{ticker:t,shares:sh,cost,price,name:ix.name>=0?String(r[ix.name]??"").trim():""});
+  }
+  if(!out.size) throw new Error("no rows with a ticker and a positive number of shares");
+  return {fileName,at:isoLocal(new Date()),rows:[...out.values()],skipped,hasCost:ix.cost>=0};
+}
+function loadXlsxLib(){return window.XLSX?Promise.resolve():new Promise((ok,bad)=>{const sc=document.createElement("script");
+  sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=ok;sc.onerror=()=>bad(new Error("could not load the Excel reader - save the file as CSV and try again"));document.head.appendChild(sc)})}
+async function readFile(file){
+  if(/\.(xlsx|xls)$/i.test(file.name)){await loadXlsxLib();const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+    for(const name of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:""});try{return rowsToHoldings(rows,file.name)}catch(e){}}
+    throw new Error("no sheet had a Ticker/Symbol column and a Shares/Quantity column");}
+  return rowsToHoldings(parseCSV(await file.text()),file.name);
+}
+function currentPortfolio(){
+  const useUpload=UPLOAD&&(PUBLIC||P.pfSource==="upload");
+  if(!useUpload) return T.portfolio||{holdings:[],total_value:0};
+  const hs=UPLOAD.rows.map(r=>{const a=ALL.get(r.ticker), px=a?.current_price??(isFinite(r.price)?r.price:(isFinite(r.cost)?r.cost:null));
+    const cost=isFinite(r.cost)?r.cost:null, mv=px!=null?px*r.shares:0;
+    return {ticker:r.ticker,company:a?.company||r.name||"",shares:r.shares,avg_cost:cost,current_price:px,market_value:mv,
+      gain_pct:cost&&px!=null?px/cost-1:null,inScreener:!!a,priceFrom:a?"screener":isFinite(r.price)?"your file":"cost (no price)"}});
+  const total=hs.reduce((s,h)=>s+h.market_value,0); hs.forEach(h=>h.weight_pct=total?h.market_value/total:0);
+  return {holdings:hs,total_value:total,stock_value:total,options_value:0,uploaded:true,fileName:UPLOAD.fileName};
+}
+function renderUploadStatus(pf){
+  const st=$("pfStatus"); if(!UPLOAD){ $("pfClear").hidden=true; return }
+  $("pfClear").hidden=false;
+  if(!PUBLIC&&P.pfSource!=="upload"){st.className="upl-status";st.innerHTML=`Loaded <b>${esc(UPLOAD.fileName)}</b> (${UPLOAD.rows.length} holdings). Pick "My uploaded file" to use it.`;return}
+  const miss=pf.holdings.filter(h=>!h.inScreener);
+  st.className="upl-status";
+  st.innerHTML=`Using <b>${esc(UPLOAD.fileName)}</b>: ${UPLOAD.rows.length} holding${UPLOAD.rows.length===1?"":"s"}, worth <b>${money(pf.total_value)}</b> at the ${dshort(D.as_of_session)} close`+
+    (UPLOAD.skipped?` · ${UPLOAD.skipped} row${UPLOAD.skipped===1?"":"s"} skipped (no ticker or shares)`:"")+
+    (!UPLOAD.hasCost?` · <span style="color:var(--amber)">no average-cost column, so risk lines and P/L are blank</span>`:"")+
+    (miss.length?`<br><span style="color:var(--amber)">Not in the screener (no signals, priced from ${miss.some(h=>h.priceFrom==="your file")?"your file":"cost"}): ${miss.map(h=>esc(h.ticker)).join(", ")}</span>`:"")+
+    `<br>Read in this browser only.${P.pfRemember?" Remembered on this device.":" Not saved: it's gone when you close the page."}`;
+}
+function initUpload(){
+  if(PUBLIC){ /* public links are handled by the page-nav bar */ }
+  else { $("pfSource").hidden=false; $("uplTitle").textContent="Portfolio to check"; if(!P.pfSource) P.pfSource="desk"; }
+  if(P.pfRemember){ try{UPLOAD=JSON.parse(localStorage.getItem(UPKEY)||"null")}catch(e){} }
+  $("pfRemember").checked=!!P.pfRemember;
+  const syncSrc=()=>document.querySelectorAll("#pfSource button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===P.pfSource)));
+  syncSrc();
+  $("pfSource").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    if(b.dataset.v==="upload"&&!UPLOAD){$("pfFile").click();return}
+    P.pfSource=b.dataset.v;save();syncSrc();render()});
+  $("pfPick").addEventListener("click",()=>$("pfFile").click());
+  $("pfFile").addEventListener("change",async e=>{const f=e.target.files[0]; e.target.value=""; if(!f) return;
+    const st=$("pfStatus"); st.className="upl-status"; st.textContent=`Reading ${f.name}…`;
+    try{ UPLOAD=await readFile(f); if(!PUBLIC){P.pfSource="upload";syncSrc()}
+      if(P.pfRemember){try{localStorage.setItem(UPKEY,JSON.stringify(UPLOAD))}catch(e){}}
+      save(); render(); }
+    catch(err){ st.className="upl-status err"; st.textContent=`Couldn't read ${f.name}: ${err.message}. Try the template.`; }});
+  $("pfClear").addEventListener("click",()=>{UPLOAD=null;try{localStorage.removeItem(UPKEY)}catch(e){}
+    if(!PUBLIC){P.pfSource="desk";syncSrc()} save(); $("pfStatus").className="upl-status"; $("pfStatus").textContent="File removed."; render()});
+  $("pfRemember").addEventListener("change",e=>{P.pfRemember=e.target.checked;save();
+    try{ if(P.pfRemember&&UPLOAD) localStorage.setItem(UPKEY,JSON.stringify(UPLOAD)); else localStorage.removeItem(UPKEY);}catch(x){} render()});
+  // type holdings into a blank grid (the "empty template" without a file)
+  const gridRows=n=>Array.from({length:n},()=>`<tr><td><input data-c="t" placeholder="e.g. AAPL" autocapitalize="characters"></td><td><input data-c="s" inputmode="decimal" placeholder="10"></td><td><input data-c="c" inputmode="decimal" placeholder="185.50"></td></tr>`).join("");
+  $("pfType").addEventListener("click",()=>{
+    const pre=UPLOAD?UPLOAD.rows:[];
+    $("pfGridTbl").innerHTML=`<thead><tr><th class="l">Ticker</th><th class="l">Shares</th><th class="l">Average cost (HKD)</th></tr></thead><tbody>`+gridRows(Math.max(10,pre.length+3))+`</tbody>`;
+    const trs=$("pfGridTbl").querySelectorAll("tbody tr");
+    pre.forEach((r,i)=>{const q=trs[i].querySelectorAll("input");q[0].value=r.ticker;q[1].value=r.shares;q[2].value=isFinite(r.cost)?r.cost:""});
+    $("pfGrid").hidden=false; trs[0].querySelector("input").focus();});
+  $("pfGridAdd").addEventListener("click",()=>$("pfGridTbl").querySelector("tbody").insertAdjacentHTML("beforeend",gridRows(5)));
+  $("pfGridCancel").addEventListener("click",()=>{$("pfGrid").hidden=true});
+  $("pfGridUse").addEventListener("click",()=>{
+    const rows=[["Ticker","Shares","Average Cost"]];
+    $("pfGridTbl").querySelectorAll("tbody tr").forEach(tr=>{const q=tr.querySelectorAll("input");if(q[0].value.trim())rows.push([q[0].value,q[1].value,q[2].value])});
+    const st=$("pfStatus");
+    try{ UPLOAD=rowsToHoldings(rows,"holdings typed in"); if(!PUBLIC){P.pfSource="upload";syncSrc()}
+      if(P.pfRemember){try{localStorage.setItem(UPKEY,JSON.stringify(UPLOAD))}catch(e){}}
+      $("pfGrid").hidden=true; save(); render(); }
+    catch(err){ st.className="upl-status err"; st.textContent=`Couldn't use those rows: ${err.message}.`; }});
+  $("pfTemplateX").addEventListener("click",async()=>{
+    try{ await loadXlsxLib();
+      const ws=XLSX.utils.aoa_to_sheet([["Ticker","Shares","Average Cost","Name"],["AAPL",10,185.5,"Apple Inc. (example: replace or delete)"],["","","",""]]);
+      ws["!cols"]=[{wch:10},{wch:10},{wch:14},{wch:40}];
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Portfolio"); XLSX.writeFile(wb,"portfolio_template.xlsx"); }
+    catch(err){ $("pfStatus").className="upl-status err"; $("pfStatus").textContent=err.message; }});
+  $("pfTemplate").addEventListener("click",()=>{
+    const csv="Ticker,Shares,Average Cost,Name\n0700.HK,100,480.00,Tencent (example: replace or delete)\n";
+    const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download="portfolio_template.csv"; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)});
+}
+
+/* ---- realignment: section 2 sells -> section 3 buys -> before/after (2026-10-19) ---- */
+function sellPlan(plan){
+  const mode=P.useTrim, out=[];
+  for(const p of plan){
+    if(mode==="2"&&p.isExit&&p.h.current_price) out.push({p,kind:"exit",sh:p.h.shares,usd:p.h.market_value});
+    else if(mode!=="0"&&p.act==="trim"&&p.trimUsd>0) out.push({p,kind:"trim",sh:Math.min(p.trimSh,p.h.shares),usd:Math.min(p.trimSh,p.h.shares)*p.h.current_price});
+  }
+  return out;
+}
+function mixStats(positions,cash,SB){
+  // positions: [{ticker, mv, below}]
+  const inv=positions.reduce((s,x)=>s+x.mv,0), tot=inv+cash, lead=SB.leader?new Set(SB.leader.today):new Set();
+  const big=positions.reduce((m,x)=>x.mv>m.mv?x:m,{mv:0,ticker:"–"});
+  return {n:positions.filter(x=>x.mv>0.5).length, inv, cash, tot,
+    big:tot?big.mv/tot:0, bigT:big.ticker, lead:tot?positions.filter(x=>lead.has(x.ticker)).reduce((s,x)=>s+x.mv,0)/tot:0,
+    below:positions.filter(x=>x.below&&x.mv>0.5).length, over:positions.filter(x=>tot&&x.mv/tot>P.cap/100+1e-9).length};
+}
+function renderRealign(plan,sells,bp,SB){
+  const el=$("realign"); if(!plan.length&&!bp.funded.length){el.innerHTML="";return}
+  const cash0=+P.cash||0, sellMap=new Map(sells.map(x=>[x.p.h.ticker,x]));
+  const before=plan.map(p=>({ticker:p.h.ticker,mv:p.h.market_value||0,below:p.below}));
+  const proceeds=sells.reduce((s,x)=>s+x.usd,0);
+  const buys=bp.funded.filter(r=>r.sh1+r.sh2>0).map(r=>({t:r.t,sh:r.sh1+r.sh2,usd:r.sh1*r.e1+r.sh2*r.e2,r}));
+  const spend=buys.reduce((s,x)=>s+x.usd,0);
+  const after=plan.map(p=>{const x=sellMap.get(p.h.ticker);const mv=(p.h.market_value||0)-(x?x.usd:0);return {ticker:p.h.ticker,mv:Math.max(0,mv),below:p.below}})
+    .concat(buys.map(b=>({ticker:b.t,mv:b.usd,below:false})));
+  const B=mixStats(before,cash0,SB), A=mixStats(after,cash0+proceeds-spend,SB);
+  const L=SB.leader, leadName=L?L.name:"the leading rule";
+  const sellLis=sells.length?sells.map(x=>`<li><b>${esc(x.p.h.ticker)}</b> sell ${x.kind==="exit"?"all ":""}${fmtSh(x.sh)} sh ≈ <b>${money(x.usd)}</b> <span class="muted">(${x.kind==="exit"?"REVIEW EXIT":`trim to ${P.cap}%`})</span></li>`).join("")
+    :`<li>${P.useTrim==="0"?"Nothing: <b>Fund buys from</b> is set to cash only.":"Nothing to sell under the current settings."}</li>`;
+  const skipped=P.useTrim!=="2"?plan.filter(p=>p.isExit&&!sellMap.has(p.h.ticker)).length:0;
+  const buyLis=buys.length?buys.map(b=>`<li><b>${esc(b.t)}</b> ${b.r.sh1} @ ${money(b.r.e1,2)} + ${b.r.sh2} @ ${money(b.r.e2,2)} ≈ <b>${money(b.usd)}</b></li>`).join("")
+    :`<li>${!L?"No rule is leading, so nothing is bought.":"No budget: enter cash, or let trims/exits fund buys."}</li>`;
+  const row=(lbl,b,a,fmt,goodDown)=>{const d=a-b, cls2=Math.abs(d)<1e-9?"":((goodDown?d<0:d>0)?"better":"worse");
+    return `<tr><td>${lbl}</td><td>${fmt(b)}</td><td class="${cls2}">${fmt(a)}</td></tr>`};
+  el.innerHTML=`<div class="ra">
+    <div class="panel"><h3><span class="n">STEP 1</span>Sell (from section 2)</h3><ul>${sellLis}</ul>
+      <p class="note">Frees about <b>${money(proceeds)}</b>.${skipped?` ${skipped} REVIEW EXIT holding${skipped===1?" is":"s are"} kept: choose <b>+ Trims &amp; exits</b> above to sell ${skipped===1?"it":"them"} too.`:""}</p></div>
+    <div class="panel"><h3><span class="n">STEP 2</span>Buy (${esc(leadName)})</h3><ul>${buyLis}</ul>
+      <p class="note">Spends about <b>${money(spend)}</b> of the ${money(cash0+proceeds)} available, in two entries each (the second only fills if the price dips to it).</p></div>
+    <div class="panel"><h3><span class="n">RESULT</span>Before → after</h3>
+      <table><thead><tr><th>Measure</th><th>Before</th><th>After</th></tr></thead><tbody>
+      ${row("Positions",B.n,A.n,v=>String(v),false).replace(/class="(better|worse)"/,"")}
+      ${row(`<span title="Share of the total in stocks picked today by ${esc(leadName)}">In leading-rule picks</span>`,B.lead,A.lead,v=>pct(v,0),false)}
+      ${row("Largest position",B.big,A.big,v=>pct(v,0),true)}
+      ${row(`Over ${P.cap}% max`,B.over,A.over,v=>String(v),true)}
+      ${row("Below risk line",B.below,A.below,v=>String(v),true)}
+      ${row("Cash",B.cash,A.cash,v=>money(v),false).replace(/class="(better|worse)"/,"")}
+      </tbody></table>
+      <p class="note">Shares of the total (holdings + cash). Assumes both entries fill at the listed prices.</p></div>
+  </div>`;
+}
+const fmtSh=v=>Number.isInteger(v)?String(v):v.toFixed(2);
+
+/* ---- 5. Actual P&L (added 2026-10-21) ----
+   From dashboard_data.json portfolio.realized.pnl, built by generate_dashboard_data.py
+   from Trade_Tracker.xlsx > My Trades (SELL and DIVIDEND rows). Private page only. */
+let PNL_DONE=false, PNL_CH=[], PNL_SORT={k:"date",dir:-1}, PNL_OPEN=null;
+const qOf=ym=>Math.floor((+ym.slice(5,7)-1)/3)+1;
+const ymName=(ym,long)=>new Date(+ym.slice(0,4),+ym.slice(5,7)-1,1).toLocaleDateString("en-US",long?{month:"long",year:"numeric"}:{month:"short",year:"2-digit"});
+const usd=(v,dp=0)=>v==null||isNaN(v)?"–":(v<0?"−HK$":"HK$")+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const susd=(v,dp=0)=>v==null||isNaN(v)?"–":(v>0?"+":"")+usd(v,dp);
+function sumRows(rows){const o={bought:0,sold:0,gains:0,losses:0,dividends:0,sells:0,wins:0,n_div:0};for(const r of rows)for(const k in o)o[k]+=r[k]||0;o.total=o.gains+o.losses+o.dividends;return o}
+function renderPnl(){
+  const R=T.portfolio&&T.portfolio.realized, X=R&&R.pnl;
+  if(PUBLIC||!X||!X.months||!X.months.length){$("s5").hidden=true;$("jump5").hidden=true;return}
+  $("s5").hidden=false; $("jump5").hidden=false;
+  const tgt=X.target_per_month||0, months=X.months, cur=months[months.length-1].ym, yr=cur.slice(0,4), q=qOf(cur);
+  const yRows=months.filter(m=>m.ym.slice(0,4)===yr), qRows=yRows.filter(m=>qOf(m.ym)===q), mRow=sumRows([months[months.length-1]]);
+  const Q=sumRows(qRows), Y=sumRows(yRows), tgtY=tgt*yRows.length, tgtQ=tgt*qRows.length;
+  $("pnlLede").innerHTML=`Realized gain / loss from shares (and options) you <b>sold</b>, counted in the month of the sale, from <b>${ymName(X.start_month,true)}</b> (journal start ${dshort(X.journal_start)}) to the build date. <b>Bought</b> = new money put into BUY rows that month (opening balances are not counted). Cash <b>dividends</b> (DIVIDEND rows, after withholding tax) are added in the month they were paid. Gains, losses and dividends are shown separately; YTD restarts each January. Target <b>${usd(tgt)}/month</b> (set US_MONTHLY_PNL_TARGET in generate_dashboard_data.py). Fees as typed in the journal.`;
+  const sub=o=>`Gains ${susd(o.gains)} · Losses ${susd(o.losses)} · Dividends ${usd(o.dividends)}`;
+  const big=(v)=>`<span class="${cls(v)}">${susd(v,2)}</span>`;
+  $("pnlTiles").innerHTML=[
+    tile(`${ymName(cur,true)} realized`,big(mRow.total),sub(mRow)),
+    tile(`Q${q} ${yr} realized`,big(Q.total),sub(Q)),
+    tile(`${yr} YTD realized`,big(Y.total),`${sub(Y)} · ${Y.sells} sold, ${Y.wins} win${Y.wins===1?"":"s"}, ${Y.n_div} dividend${Y.n_div===1?"":"s"}`),
+    tile("YTD vs target",`<span class="${cls(Y.total-tgtY)}">${susd(Y.total-tgtY)}</span>`,`${usd(tgtY)} target over ${yRows.length} month${yRows.length===1?"":"s"}`),
+  ].join("");
+  // charts
+  PNL_CH.forEach(c=>c.destroy()); PNL_CH=[];
+  if(window.Chart){
+    const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const labels=yRows.map(m=>ymName(m.ym)), grid=css("--line"), ink=css("--ink-dim");
+    const axes={x:{grid:{display:false},ticks:{color:ink}},y:{grid:{color:grid},ticks:{color:ink,callback:v=>usd(v)}}};
+    const netLabel={id:"net",afterDatasetsDraw(c){const {ctx}=c;ctx.save();ctx.fillStyle=css("--ink");ctx.font="600 11px IBM Plex Mono, monospace";ctx.textAlign="center";
+      yRows.forEach((m,i)=>{const t=m.gains+m.losses+m.dividends;if(!m.sells&&!m.n_div)return;const meta=c.getDatasetMeta(0).data[i];if(!meta)return;
+        const top=Math.min(...[0,1,2].map(d=>c.getDatasetMeta(d).data[i]?.y??1e9));ctx.fillText("net "+susd(t),meta.x+ (c.getDatasetMeta(1).data[i].x-meta.x),Math.max(12,top-8))});ctx.restore()}};
+    PNL_CH.push(new Chart($("pnlBar"),{type:"bar",data:{labels,datasets:[
+      {label:"Gains (winning sells)",data:yRows.map(m=>m.gains),backgroundColor:css("--green"),borderRadius:3},
+      {label:"Losses (losing sells)",data:yRows.map(m=>m.losses),backgroundColor:css("--red"),borderRadius:3},
+      {label:"Dividends",data:yRows.map(m=>m.dividends),backgroundColor:css("--blue"),borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:axes,plugins:{legend:{labels:{color:ink,boxWidth:12}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${susd(c.raw,2)}`}}}},plugins:[netLabel]}));
+    let run=0; const cum=yRows.map(m=>run+=m.gains+m.losses+m.dividends);
+    PNL_CH.push(new Chart($("pnlCum"),{type:"line",data:{labels,datasets:[
+      {label:"Total realized",data:cum,borderColor:css("--ink"),backgroundColor:css("--ink"),pointRadius:4,tension:0},
+      {label:"Target to date",data:yRows.map((m,i)=>tgt*(i+1)),borderColor:css("--ink-faint"),borderDash:[6,4],pointRadius:3,pointBackgroundColor:"transparent"}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:axes,plugins:{legend:{labels:{color:ink,boxWidth:12}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${susd(c.raw,2)}`}}}}}));
+  }
+  // period table
+  const row=(name,o,ytdCum,tg,cl="")=>`<tr class="${cl}"><td>${name}</td><td>${usd(o.bought)}</td><td>${usd(o.sold)}</td><td class="pos">${susd(o.gains)}</td><td class="neg">${o.losses?susd(o.losses):usd(0)}</td><td class="${o.dividends?"pos":"muted"}">${usd(o.dividends,2)}</td><td class="${cls(o.total)}">${susd(o.total,2)}</td><td class="${cls(ytdCum)}">${susd(ytdCum,2)}</td><td>${o.sells}</td><td>${o.wins}</td><td>${usd(tg)}</td><td class="${cls(o.total-tg)}">${susd(o.total-tg)}</td></tr>`;
+  let c=0, body="";
+  for(const m of yRows){const o=sumRows([m]);c+=o.total;body+=row(ymName(m.ym,true),o,c,tgt)}
+  body+=row(`Q${q} ${yr} (to date)`,Q,Y.total,tgtQ,"q")+row(`${yr} YTD`,Y,Y.total,tgtY,"ytd"+(Y.total>=0?" up":""));
+  $("pnlTbl").innerHTML=`<thead><tr><th>Period</th><th>Bought</th><th>Sold</th><th>Gains</th><th>Losses</th><th>Dividends</th><th>Total realized</th><th>YTD cumulative</th><th>Sells</th><th>Wins</th><th>Target</th><th>vs Target</th></tr></thead><tbody>${body}</tbody>`;
+  if(PNL_OPEN==null) PNL_OPEN=new Set([cur]);
+  renderPnlItems(X);
+  $("pnlCollapse").onclick=()=>{const all=new Set((X.items||[]).map(i=>(i.date||"").slice(0,7)));PNL_OPEN=PNL_OPEN.size?new Set():all;renderPnlItems(X)};
+  $("pnlNote").innerHTML=`Every SELL and DIVIDEND row in <b>Trade_Tracker.xlsx › My Trades</b> from the journal start, grouped by month (sale date / payment date), newest month first. Tap a month to expand or collapse it; tap a column heading to sort within each month. <b>Realized P&amp;L</b> = sale value − fees − average cost × shares sold, the same average-cost method as the journal (options × 100). <b>Opened</b> = the day the position last went from zero to held; "carried over" means it came in as an OPENING balance, so its true buy date isn't in the journal. <b>Partial</b> = some shares are still held. <b>DIVIDEND</b> rows: Price = dividend per share, Amount = shares × DPS − withholding tax and fees, % = yield on your average cost; they don't count as wins.`+
+    ((X.early_rows||[]).length?`<br><span style="color:var(--amber)">⚠ ${X.early_rows.length} row${X.early_rows.length===1?"":"s"} dated before the journal start (${dshort(X.journal_start)}) left out: ${X.early_rows.map(r=>`${esc(r.ticker)} ${esc(r.action)} ${esc(r.date)} (sheet row ${r.row})`).join(", ")}. Usually a typo in the year.</span>`:"");
+}
+function renderPnlItems(X){
+  const items=X.items||[], by={};
+  for(const it of items){const k=(it.date||"").slice(0,7)||"no date";(by[k]=by[k]||[]).push(it)}
+  const keys=Object.keys(by).sort().reverse(), S=PNL_SORT;
+  const val=(it,k)=>k==="date"?(it.date||""):k==="ticker"?it.label:it[k];
+  const cols=[["ticker","Stock"],["shares","Shares"],["opened","Opened"],["date","Date"],["result","Result"],["avg_cost","Avg cost"],["price","Price / DPS"],["amount","Amount"],["pl","Realized P&L"],["pct","%"]];
+  let h=`<thead><tr>${cols.map(([k,l])=>`<th class="sort" data-k="${k}" ${S.k===k?`aria-sort="${S.dir<0?"descending":"ascending"}"`:""}>${l}${S.k===k?(S.dir<0?" ▾":" ▴"):""}</th>`).join("")}</tr></thead><tbody>`;
+  for(const k of keys){
+    const list=[...by[k]].sort((a,b)=>{const x=val(a,S.k),y=val(b,S.k);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return (typeof x==="string"?x.localeCompare(y):x-y)*S.dir});
+    const tot=list.reduce((s,i)=>s+(i.pl||0),0), ns=list.filter(i=>i.type==="SELL").length, nw=list.filter(i=>i.type==="SELL"&&i.pl>0).length, nd=list.length-ns, open=PNL_OPEN.has(k);
+    h+=`<tr class="mon" data-m="${k}"><td colspan="9">${open?"▾":"▸"} ${k==="no date"?"No date":ymName(k,true)} <span class="muted">· ${ns} sell${ns===1?"":"s"} · ${nw} win${nw===1?"":"s"}${nd?` · ${nd} dividend${nd===1?"":"s"}`:""}</span></td><td class="${cls(tot)}">${susd(tot,2)}</td></tr>`;
+    if(!open) continue;
+    for(const it of list){
+      const isD=it.type==="DIVIDEND", op=it.opened==null?"":it.opened==="carried over"?"carried over":dshort(it.opened);
+      h+=`<tr><td><span class="tk">${esc(it.label)}</span>${isD?'<span class="tag div">DIV</span>':it.kind==="OPTION"?'<span class="tag">OPTION</span>':""}<span class="co">${esc((ALL.get(it.ticker)||{}).company||"")}</span></td>
+        <td>${it.shares!=null?Number(it.shares).toLocaleString("en-US",{maximumFractionDigits:4}):"–"}</td><td class="muted">${op}</td><td>${it.date?dshort(it.date):"–"}</td>
+        <td class="${it.result==="Partial"?"muted":""}">${it.result}</td><td>${usd(it.avg_cost,2)}</td><td>${usd(it.price,isD?4:2)}</td><td>${usd(it.amount,2)}${isD&&it.fees?`<div class="muted" style="font-size:10.5px">tax/fees ${usd(it.fees,2)}</div>`:""}</td>
+        <td class="${cls(it.pl)}">${susd(it.pl,2)}</td><td class="${cls(it.pct)}">${it.pct!=null?spct(it.pct,1):"–"}</td></tr>`;
+    }
+  }
+  if(!keys.length) h+=`<tr><td colspan="10" class="muted">No sells or dividends recorded yet.</td></tr>`;
+  $("pnlItems").innerHTML=h+"</tbody>";
+  $("pnlCollapse").textContent=PNL_OPEN.size?"Collapse all months":"Expand all months";
+  $("pnlItems").onclick=e=>{const m=e.target.closest("tr.mon");if(m){const k=m.dataset.m;PNL_OPEN.has(k)?PNL_OPEN.delete(k):PNL_OPEN.add(k);renderPnlItems(X);return}
+    const th=e.target.closest("th.sort");if(th){const k=th.dataset.k;if(PNL_SORT.k===k)PNL_SORT.dir*=-1;else PNL_SORT={k,dir:k==="ticker"||k==="result"?1:-1};renderPnlItems(X)}};
+}
+
+/* ---- 5. dip watch & momentum (2026-10-23) ---- */
+const dipRow=t=>DW&&DW.dips?DW.dips.find(r=>r.t===t):null;
+let DW_ALL=false, DW_Q="";
+// search: matches the ticker (start of it) or any word in the company name
+function dwMatch(list){
+  const q=DW_Q.trim().toUpperCase(); if(!q) return list;
+  return list.filter(r=>r.t.startsWith(q)||String((ALL.get(r.t)||{}).company||"").toUpperCase().includes(q));
+}
+function dwSearchNote(shown){
+  const el=$("dwSearchNote"), q=DW_Q.trim().toUpperCase();
+  if(!q){el.hidden=true;return}
+  el.hidden=false;
+  if(shown) {el.innerHTML=`${shown} match${shown===1?"":"es"} for <b>${esc(q)}</b> in today's dip list.`;return}
+  // not in the dip list: say where the stock stands, if the screener knows it
+  const a=ALL.get(q), w=D.watch[q];
+  if(a&&w){const c=w.c.filter(v=>v!=null), hi=Math.max(...c.slice(-20)), last=c[c.length-1];
+    el.innerHTML=`<b>${esc(q)}</b> is not in today's dip list: it is ${spct(last/hi-1)} from its 20-day high (a card appears at −15% or more).`}
+  else el.innerHTML=`No match for <b>${esc(q)}</b> in today's dip list or the screener.`;
+}
+const days=v=>v==null?"–":`${Math.round(v)}d`;
+function dipChart(ch,low52){
+  const W=340,H=118,pad=4,c=ch.c,ma=ch.ma,n=c.length; if(!n) return "";
+  const vals=c.concat(ma.filter(v=>v!=null)), lo=Math.min(...vals), hi=Math.max(...vals), rg=(hi-lo)||1;
+  const x=i=>pad+(W-2*pad)*i/Math.max(1,n-1), y=v=>pad+(H-2*pad)*(1-(v-lo)/rg);
+  const line=a=>a.map((v,i)=>v==null?null:`${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(" ");
+  const zones=(ch.zones||[]).map(([a,b])=>{const xa=x(Math.max(0,a)),xb=x(Math.min(n-1,Math.max(a+0.3,b)));return xb>pad?`<rect x="${xa.toFixed(1)}" y="0" width="${Math.max(2,xb-xa).toFixed(1)}" height="${H}" fill="var(--red-soft)" opacity=".7"/>`:""}).join("");
+  const area=`${pad},${H} ${line(c)} ${x(n-1).toFixed(1)},${H}`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Price over 1.5 years with past dips shaded">${zones}
+    <polygon points="${area}" fill="var(--blue-soft)" opacity=".55"/>
+    <polyline points="${line(ma)}" fill="none" stroke="var(--ink-faint)" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <polyline points="${line(c)}" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/>
+    <circle cx="${x(n-1).toFixed(1)}" cy="${y(c[n-1]).toFixed(1)}" r="3.5" fill="${low52?"var(--red)":"var(--blue)"}"/></svg>`;
+}
+function dipCard(r,held){
+  const a=ALL.get(r.t)||{}, k=r.card||{}, now=k.now, rec=k.rec||{};
+  const cls=r.suspect?"chk":r.low52?"avoid":"dip", pill=r.suspect?"CHECK DATA":r.low52?"AVOID · 52W LOW":"DIP WATCH";
+  const rate=k.n?k.bounced/k.n:null;
+  const t=(kk,v,s2)=>`<div class="dc-t"><div class="k">${kk}</div><div class="v">${v}</div><div class="s">${s2}</div></div>`;
+  const chips=[];
+  if(now) chips.push(`<span class="chip ${now.deeper_than>=0.75?"r":now.deeper_than<=0.25?"g":""}">This dip ${spct(now.depth,0)} from its ${dshort(now.peak_d)} peak, ${now.days}d so far · deeper than ${pct(now.deeper_than,0)} of past dips</span>`);
+  if(now&&now.longer_than!=null) chips.push(`<span class="chip ${now.longer_than>=0.75?"a":""}">Longer than ${pct(now.longer_than,0)} of past dips</span>`);
+  if(r.post_earn) chips.push(`<span class="chip a">Post-earnings fall ${spct(r.big)} on ${dshort(r.big_d)}</span>`);
+  if(r.low52) chips.push(`<span class="chip r">New 52-week low: no bounce edge in the backtest</span>`);
+  if(r.suspect) chips.push(`<span class="chip">One-day fall of ${spct(r.big,0)}: likely a split or spin-off</span>`);
+  if(r.uptrend) chips.push(`<span class="chip g">Was above its 200-day avg at the peak</span>`);
+  if(held.has(r.t)) chips.push(`<span class="chip g">You hold this</span>`);
+  if(a.signal) chips.push(`<span class="chip">${esc(a.signal)} · score ${a.matrix_score??"–"}</span>`);
+  if(a.earnings_date) chips.push(`<span class="chip${earnSoon(a)?" a":""}">Earnings ${dshort(a.earnings_date)}</span>`);
+  const H=[["5","1 wk"],["10","2 wks"],["20","4 wks"],["40","8 wks"],["60","12 wks"]];
+  const recT=H.map(([h,l])=>{const q=rec[h]||{};return `<div><div class="k">${l}</div><div class="v ${cls2(q.avg)}">${spct(q.avg,0)}</div><div class="s">med ${spct(q.med,0)}<br>up ${q.n?Math.round(q.up*q.n)+"/"+q.n:"–"}</div></div>`}).join("");
+  const eps=(k.eps||[]).map(e=>`<tr><td title="${e.pk_d}">${dshort(e.pk_d)}</td><td class="neg">${spct(e.depth,0)}</td><td>${e.down}d</td><td>${e.bounce?days(e.to_bounce):'<span class="neg">none</span>'}</td><td>${e.run_gain!=null?`<span class="pos">${spct(e.run_gain,0)}</span><span class="muted"> ${e.run_len}d</span>`:"–"}</td><td class="${cls2(e.r20)}">${spct(e.r20,0)}</td></tr>`).join("");
+  return `<article class="dcard ${cls}">
+    <div><div class="dc-head"><div><span class="tkr">${esc(r.t)}</span><span class="pill ${cls}">${pill}</span></div><div class="px">${money(r.px,2)}</div></div>
+      <div class="dc-sub"><span class="co2">${esc(a.company||"")}${a.category?" · "+esc(a.category):""}</span><span class="neg" style="white-space:nowrap">${spct(r.dd)} off 20d high</span></div></div>
+    <div class="dc-chart">${k.chart?dipChart(k.chart,r.low52):""}
+      <div class="dc-leg"><span><i style="border-color:var(--ink)"></i>price</span><span><i style="border-color:var(--ink-faint);border-top-style:dashed"></i>200-day avg</span><span><i class="box"></i>past dips, peak → low</span><span>1.5 yrs</span></div></div>
+    <div class="dc-tiles">
+      ${t("Bounce rate",k.n?`${k.bounced}/${k.n}`:"–",rate!=null?`${pct(rate,0)} got back half within 12 wks`:"no past dips")}
+      ${t("Time to bounce",days(k.to_bounce),"low → half the drop back")}
+      ${t("Upward run",k.run_gain!=null?`${spct(k.run_gain,0)}`:"–",k.run_len!=null?`lasts ${days(k.run_len)} until a 10% pullback`:"after the bounce")}
+      ${t("Dip length",days(k.down),"peak → low, typical")}
+      ${t("Typical depth",spct(k.depth,0),"peak → low")}
+      ${t("Back to old high",k.to_high_of?`${k.to_high_n}/${k.to_high_of}`:"–",k.to_high!=null?`typically ${days(k.to_high)} after the low`:"within a year")}
+    </div>
+    <div class="dc-chips">${chips.join("")}</div>
+    <div class="dc-h">Return after first hitting −15% <small>· average of ${(rec["20"]||{}).n||0} past dips</small></div>
+    <div class="dc-rec">${recT}</div>
+    ${eps?`<div class="dc-h">Recent dips <small>· newest first</small></div>
+    <div class="scroll"><table class="dc-eps"><thead><tr><th>Peak</th><th>Depth</th><th>Down</th><th>Bounce in</th><th>Run after</th><th>4 wks</th></tr></thead><tbody>${eps}</tbody></table></div>`:""}
+    <div class="dc-foot">Days are trading days, medians over 5 years. A <b>bounce</b> = getting back half the drop from the low. The <b>run</b> ends at the first 10% pullback from its high. History is context, not a forecast: across all stocks a strong bounce record only modestly beat a poor one.${window.Valuation?" "+Valuation.button(r.t):""}</div>
+  </article>`;
+}
+const cls2=v=>v==null?"muted":v>=0?"pos":"neg";
+function renderDipCards(held){
+  let list=dwMatch(DW.dips||[]);
+  if(P.dwHideLow) list=list.filter(r=>!r.low52&&!r.suspect);
+  const rate=r=>r.card&&r.card.n>=3?r.card.bounced/r.card.n:-1;
+  if(P.dwSort==="rate") list.sort((a,b)=>(a.suspect-b.suspect)||(a.low52-b.low52)||rate(b)-rate(a)||((b.card||{}).n||0)-((a.card||{}).n||0));
+  else if(P.dwSort==="held") list.sort((a,b)=>(held.has(b.t)-held.has(a.t))||(a.suspect-b.suspect)||(a.low52-b.low52)||a.dd-b.dd);
+  const LIMIT=12, show=(DW_ALL||DW_Q.trim())?list:list.slice(0,LIMIT);
+  $("dwCards").innerHTML=show.length?show.map(r=>dipCard(r,held)).join(""):`<div class="empty-pf">No stock is 15% or more under its 20-day high today.</div>`;
+  dwSearchNote(list.length);
+  const more=$("dwMore"); more.hidden=list.length<=LIMIT||!!DW_Q.trim(); more.textContent=DW_ALL?"Show fewer":`Show all ${list.length}`;
+}
+function renderDipWatch(held){
+  if(!DW){
+    $("dwLede").innerHTML="No <b>dip_watch_data.json</b> yet. Run <b>python generate_dip_watch.py</b> (it is step 10 of the daily pipeline) and publish again.";
+    ["dwTiles","dwTbl","dwCards","gapTbl","dwNote","gapNote"].forEach(id=>$(id).innerHTML=""); return;
+  }
+  const S=DW.stats||{}, st=S.notlow||{}, nl=S.newlow||{}, g=S.gap||{}, br=S.by_record||{};
+  const stale=DW.as_of!==D.as_of_session;
+  const yrs=Object.entries(g.by_year||{}), posY=yrs.filter(([,v])=>v>0).length;
+  $("dwLede").innerHTML=`Stocks that have just fallen hard, and stocks that just gapped up on heavy volume. Prices as of <b class="${stale?"dw-stale":""}">${dshort(DW.as_of)}</b>${stale?` (the tracker is on ${dshort(D.as_of_session)}: run generate_dip_watch.py again)`:""}. The figures below are re-tested on 5 years of prices every run. Stocks under $${DW.params.min_price||5} are left out. The honest summary: <b>buying big dips has a small edge with coin-flip odds</b>, a stock's own bounce record is <b>context, not a signal</b>, and <b>dips that are also a new 52-week low have no edge</b>. The two buy rules are forward-tested in the section 1 scoreboard before the page ever funds them.`;
+  $("dwTiles").innerHTML=[
+    tile("Dip, not a 52w low",spct(st.ex),`4 weeks vs market · ${pct(st.win,0)} beat it · ${st.n||0} dips since ${S.since?S.since.slice(0,4):""}`),
+    tile("Dip at a new 52w low",spct(nl.ex),`4 weeks vs market · ${pct(nl.win,0)} beat it · ${nl.n||0} dips`),
+    tile("Strong vs poor bounce record",`${pct(br.high&&br.high.rec,0)} / ${pct(br.low&&br.low.rec,0)}`,`got back half the drop in 4 weeks (${br.high?br.high.n:0} vs ${br.low?br.low.n:0} dips)`),
+    tile("Gap-up continuation",spct(g.ex),`3 months vs market · positive in ${posY} of ${yrs.length} years · ${g.n||0} gaps`),
+  ].join("");
+  const rec=r=>r.hist&&r.hist.n?r.hist:null;
+  const read=r=>r.suspect?'<span class="act wait">CHECK DATA</span>':r.low52?'<span class="act exit">AVOID: 52W LOW</span>':'<span class="act dip">DIP WATCH</span>';
+  const dips=dwMatch(DW.dips||[]);
+  $("dwList").innerHTML=(DW.dips||[]).map(r=>`<option value="${esc(r.t)}">${esc((ALL.get(r.t)||{}).company||"")}</option>`).join("");
+  $("dwTbl").innerHTML=dips.length?`<thead><tr><th>Stock</th><th class="l">Read</th><th>Price</th><th>Off 20d high</th><th>Off 52w high</th><th>Days since peak</th><th>Biggest 1-day fall</th><th>Past dips</th><th>Got back half</th><th>Fell 10% more</th><th>4 wks vs mkt</th><th>Signal</th></tr></thead><tbody>`+
+    dips.map(r=>{const a=ALL.get(r.t)||{},h=rec(r);return `<tr><td><span class="tk">${esc(r.t)}</span>${held.has(r.t)?'<span class="tag held">HELD</span>':""}${r.low52?'<span class="tag low">52W LOW</span>':""}${r.post_earn?'<span class="tag earn" title="The biggest fall came within 4 days of the last earnings report">POST-EARNINGS</span>':""}${r.suspect?'<span class="tag chk" title="A one-day fall of 45%+ is usually a split or spin-off adjustment">SPLIT/SPIN?</span>':""}${window.Valuation?Valuation.button(r.t):""}<span class="co">${esc(a.company||"")}</span></td>
+      <td class="l">${read(r)}</td><td>${money(r.px,2)}</td><td class="neg">${spct(r.dd)}</td><td class="${cls(r.dd52)}">${spct(r.dd52,0)}</td><td>${r.days??"–"}</td>
+      <td class="${cls(r.big)}">${spct(r.big)}${r.big_d?`<span class="muted"> ${dshort(r.big_d)}</span>`:""}</td>
+      <td>${h?h.n:"–"}</td><td>${h?pct(h.rec,0):"–"}</td><td>${h?pct(h.slide,0):"–"}</td><td class="${h?cls(h.ex):"muted"}">${h?spct(h.ex):"–"}</td>
+      <td>${esc(a.signal||"–")}<span class="muted"> ${a.matrix_score??""}</span></td></tr>`}).join("")+`</tbody>`
+    :`<tbody><tr><td class="empty-pf">No stock is 15% or more under its 20-day high today.</td></tr></tbody>`;
+  $("dwNote").innerHTML=`<b>Past dips</b> = this stock's earlier 15%+ falls over 5 years. <b>Got back half</b> = recovered half the drop within 4 weeks. <b>Fell 10% more</b> = dropped another 10% within 4 weeks first or instead. Across all stocks, a strong record (two-thirds or more) got back half ${pct(br.high&&br.high.rec,0)} of the time vs ${pct(br.low&&br.low.rec,0)} for a poor one (one-third or less), too small to trade on alone. <b>POST-EARNINGS</b> = the biggest fall came within 4 days of the last report (beat or miss is not tracked). Use your usual entries (Support, then halfway to Mid BB) and the 3 × ATR risk line.`;
+  const cardsView=P.dwView!=="table";
+  $("dwTblWrap").hidden=cardsView; $("dwCards").hidden=!cardsView; $("dwMore").hidden=true;
+  $("dwSort").hidden=!cardsView; $("dwHideLow").parentElement.hidden=!cardsView;
+  if(cardsView) renderDipCards(held); else dwSearchNote(dips.length);
+  document.querySelectorAll("#dwView button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===(cardsView?"cards":"table"))));
+  document.querySelectorAll("#dwSort button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===P.dwSort)));
+  $("dwHideLow").checked=!!P.dwHideLow;
+  const gaps=DW.gaps||[];
+  $("gapTbl").innerHTML=gaps.length?`<thead><tr><th>Stock</th><th class="l">Gap day</th><th>Gap open</th><th>Day close</th><th>Volume ×</th><th>Since gap day</th><th>Price</th><th class="l">Trend</th><th>Signal</th></tr></thead><tbody>`+
+    gaps.map(r=>{const a=ALL.get(r.t)||{};return `<tr><td><span class="tk">${esc(r.t)}</span>${held.has(r.t)?'<span class="tag held">HELD</span>':""}${r.post_earn?'<span class="tag earn">POST-EARNINGS</span>':""}${window.Valuation?Valuation.button(r.t):""}<span class="co">${esc(a.company||"")}</span></td>
+      <td class="l">${dshort(r.d)}<span class="muted"> ${r.sessions_ago?r.sessions_ago+"d ago":"today"}</span></td><td class="pos">${spct(r.gap)}</td><td class="${cls(r.day)}">${spct(r.day)}</td><td>${(r.volx||0).toFixed(1)}×</td>
+      <td class="${cls(r.since)}">${spct(r.since)}</td><td>${money(r.px,2)}</td><td class="l">${r.uptrend?'<span class="pos">Uptrend</span>':'<span class="muted">Not in uptrend</span>'}</td><td>${esc(a.signal||"–")}<span class="muted"> ${a.matrix_score??""}</span></td></tr>`}).join("")+`</tbody>`
+    :`<tbody><tr><td class="empty-pf">No 4%+ gap-up on 2× volume in the last 10 sessions.</td></tr></tbody>`;
+  $("gapNote").innerHTML=`A <b>gap-up</b> = opened ${pct(DW.params.gap_min,0)}+ above the prior close on ${DW.params.gap_vol}× the 50-day volume and closed up, usually an earnings or news reaction. This was the only momentum entry in the backtest with a 3-month edge in most years (${yrs.map(([y,v])=>`${y} ${spct(v)}`).join(", ")}). Breakouts to new highs, MACD crosses, EMA20 pullbacks and Bollinger squeezes were all near zero. You cannot see a gap coming from price alone; this list catches the move <b>after</b> the first day, while the drift tends to continue.`;
+}
+
+/* ---- wiring ---- */
+let SB=null;
+/* ---- 0. market turn alert + monthly rotation (2026-11-12) ----
+   Data: vol_regime.json from generate_vol_regime.py. VXN crossing above 31 / 35
+   (vs the Nasdaq-100) and VIX above 25 / 30 / 35 (vs the S&P 500). Real-time
+   split: 20 sessions after the crossing, is fear still high (VXN >= 30 /
+   VIX >= 25, "persisting", the crisis pattern) or back down ("fading", the
+   ordinary pattern)? The rotation call uses the VXN episode. */
+let VR=null;
+const RG={
+  risk_on:{name:"Spike fading → risk-on",when:"A VXN spike above 31/35 in the last 90 sessions that faded below 30 by day 20",why:"The ordinary-spike pattern: after these, the Nasdaq has usually been higher 2-3 months later. Lean into high beta, buying on dips."},
+  fresh:{name:"Fresh spike → wait for day 20",when:"VXN crossed above 31/35 less than 20 sessions ago",why:"Crisis and ordinary spikes look the same at the start. Stay balanced, buy in stages, and let day 20 decide."},
+  neutral:{name:"Neutral",when:"No recent spike, market not stretched",why:"Keep a balanced mix and follow the scoreboard."},
+  late_rally:{name:"Calm & near highs → rotate to low beta",when:"No spike, VXN under 22, Nasdaq-100 within 3% of its 1-year high",why:"Fear is low and prices are stretched: bank some high-beta gains into steadier names before the next dip."},
+  defensive:{name:"Fear persisting → defensive",when:"VXN still at 30+ twenty sessions after a spike",why:"The crisis pattern: fear that won't fade has come with deeper falls. Hold mostly low beta and ETFs."}};
+const RG_ORDER=["risk_on","fresh","neutral","late_rally","defensive"];
+const RG_MIX={risk_on:70,fresh:50,neutral:50,late_rally:35,defensive:25};
+function statCell(st){return st&&st.n?`<span class="${st.median>=0?"pos":"neg"}">${spct(st.median)}</span> <span class="muted">${st.pos}/${st.n}</span>`:'<span class="muted">–</span>'}
+function nextReview(iso){const d=new Date(iso+"T00:00:00"),n=new Date(d.getFullYear(),d.getMonth()+1,1);while(n.getDay()===0||n.getDay()===6)n.setDate(n.getDate()+1);return n}
+function spark(pts,lines){if(!pts||pts.length<2)return"";const v=pts.map(p=>p[1]),lo=Math.min(...v,...lines)*0.95,hi=Math.max(...v,...lines)*1.05,W=300,H=46;
+  const x=i=>i/(v.length-1)*W,y=a=>H-(a-lo)/(hi-lo)*H;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${lines.map(l=>`<line x1="0" x2="${W}" y1="${y(l).toFixed(1)}" y2="${y(l).toFixed(1)}" stroke="var(--red)" stroke-dasharray="3 3" stroke-width="1" opacity=".6"/>`).join("")}<polyline fill="none" stroke="var(--amber)" stroke-width="1.6" points="${v.map((a,i)=>x(i).toFixed(1)+","+y(a).toFixed(1)).join(" ")}"/></svg>`}
+/* VXN cash allocation levels (2026-11-12): fear zone -> % of the account to keep in cash.
+   Percentile-matched to classic VIX bands (VXN runs ~4 points above VIX). Inside a
+   zone the target slides from the high end of the cash range to the low end as VXN rises. */
+const CASH_ZONES=[
+  {name:"Extreme fear",tip:"back up the truck + add new cash",lo:35,hi:null,c:[0,5],col:"#6E1520"},
+  {name:"Very fearful",tip:"heavily invested",lo:30,hi:35,c:[5,10],col:"#9B1F22"},
+  {name:"Fear",tip:"deploying aggressively",lo:25,hi:30,c:[10,20],col:"#C4471F"},
+  {name:"Slight fear",tip:"selling puts steadily",lo:19,hi:25,c:[20,30],col:"#C48422"},
+  {name:"Grind zone",tip:"selective entries",lo:15,hi:19,c:[30,40],col:"#7E8B2A"},
+  {name:"Complacency",tip:"patient - premium is cheap",lo:null,hi:15,c:[40,50],col:"#2E7A3C"}];
+function cashZone(vxn){
+  const z=CASH_ZONES.find(z=>(z.lo==null||vxn>=z.lo)&&(z.hi==null||vxn<z.hi));
+  const lo=z.lo??10, hi=z.hi??45, f=Math.min(1,Math.max(0,(vxn-lo)/(hi-lo)));
+  return {z, target:(z.c[1]-f*(z.c[1]-z.c[0]))/100};
+}
+function renderCashZones(pf){
+  const vxn=VR&&VR.vol&&VR.vol.VXN&&VR.vol.VXN.latest?VR.vol.VXN.latest.value:null;
+  const cz=vxn!=null?cashZone(vxn):null;
+  $("czTbl").innerHTML=CASH_ZONES.map(z=>`<div class="cz-row${cz&&cz.z===z?" now":""}" style="background:${z.col}"><div><b>${z.name.toUpperCase()}</b><i>${z.tip}</i></div><div class="lv">${z.lo==null?`VXN &lt; ${z.hi}`:z.hi==null?`VXN &gt; ${z.lo}`:`VXN ${z.lo}–${z.hi}`}</div><div class="cs">${z.c[0]}–${z.c[1]}% cash</div></div>`).join("");
+  if(vxn==null){$("czFlag").innerHTML='<p class="note">Needs vol_regime.json (VXN level).</p>';return}
+  const invested=pf.total_value||pf.stock_value||0, cash=+P.cash||0, total=invested+cash;
+  const share=total?cash/total:null, lo=cz.z.c[0]/100, hi=cz.z.c[1]/100;
+  let cls="ok", msg;
+  if(!total||!cash&&!invested) msg=`Enter <b>Cash you can deploy</b> at the top${PUBLIC?" and upload your holdings":""} to compare your cash with the VXN zone.`;
+  else if(share>hi){cls="hi";msg=`<b>Too much cash for this level of fear.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VXN ${vxn}). Deploy about <b>${money(cash-cz.target*total)}</b>, through cash-secured puts or staged buys at each stock's Entry - Support price.`;}
+  else if(share<lo){cls="lo";msg=`<b>Not enough cash for this level of fear.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VXN ${vxn}). Build about <b>${money(cz.target*total-cash)}</b> of cash by trimming on strength (the Sell - Resistance level) rather than selling into a dip.`;}
+  else msg=`<b>Your cash is in range.</b> You hold <b>${pct(share,0)}</b> in cash; the ${cz.z.name} zone calls for ${cz.z.c[0]}–${cz.z.c[1]}% (about ${pct(cz.target,0)} at VXN ${vxn}). No change needed.`;
+  const X=v=>Math.min(100,Math.max(0,v*200))+"%";   // meter shows 0-50% cash
+  $("czFlag").innerHTML=`<div class="tiles" style="margin-bottom:6px">${tile("VXN now",vxn,cz.z.name)}${tile("Your cash",share!=null?pct(share,0):"–",total?`${money(cash)} of ${money(total)}`:"not entered")}${tile("Zone target",`${cz.z.c[0]}–${cz.z.c[1]}%`,`about ${pct(cz.target,0)} at this VXN`)}</div>
+    <div class="cz-meter" title="0% to 50% cash"><span class="band" style="left:${X(lo)};width:calc(${X(hi)} - ${X(lo)})"></span><span class="tg" style="left:${X(cz.target)}"></span>${share!=null&&total?`<span class="you" style="left:${X(share)}"></span>`:""}</div>
+    <div class="note" style="margin-top:0;display:flex;justify-content:space-between"><span>0% cash</span><span>green band = zone · tall line = you</span><span>50%</span></div>
+    <div class="cz-flag ${cls}">${msg}</div>
+    <p class="note">Cash = the "Cash you can deploy" box at the top (dated ${P.cashAt?dshort(P.cashAt):"–"}); account = your holdings ${money(invested)} + that cash. Cash already securing open puts should be counted as cash here. Levels are a rule of thumb from the VXN chart you shared, not a forecast; not financial advice.</p>`;
+}
+function renderMarket(pf){
+  try{renderCashZones(pf)}catch(e){console.error("Cash zones:",e)}
+  if(!VR||!VR.vol){$("mkVerdict").innerHTML=`<div class="verdict warn">vol_regime.json is not available yet. Run <b>python generate_vol_regime.py</b> (step 11 of the daily refresh) and publish again.</div>`;return}
+  const vx=VR.vol.VXN||{}, vi=VR.vol.VIX||{}, rg=VR.regime;
+  // ---- verdict
+  let v="";
+  if(rg){const e=rg.episode, th=e&&vx.thresholds&&vx.thresholds[String(e.threshold)];
+    const f60=th&&th.fading["60"], p60=th&&th.persisting["60"];
+    const hist=th?`After past VXN-${e.threshold} spikes that <b>faded</b> by day 20, the Nasdaq-100 60 sessions later had a median of <b>${spct(f60.median)}</b> (${f60.pos} of ${f60.n} up); after spikes that <b>persisted</b>, <b>${spct(p60.median)}</b> (${p60.pos} of ${p60.n} up).`:"";
+    if(rg.key==="fresh") v=`<b>Fear spike in progress.</b> VXN crossed above <b>${e.threshold}</b> on <b>${dshort(e.date)}</b> at ${e.level} (Nasdaq-100 then ${pct(-e.dd_at_cross,1)} off its high) and is now <b>${e.now}</b>, session ${e.days_since} of 20. ${hist} <b>Decision day ≈ ${dshort(e.decide_date)}</b>: if VXN is below 30 then, the ordinary pattern applies (tilt to high beta); if it is back above 30, the crisis pattern (go defensive). Until then stay balanced and buy in stages.`;
+    else if(rg.key==="risk_on") v=`<b>Spike faded: risk-on.</b> VXN crossed above ${e.threshold} on ${dshort(e.date)} and was back under 30 by day 20; now ${e.now}. ${hist} Nasdaq-100 since the crossing: ${spct(e.ret_since)}.`;
+    else if(rg.key==="defensive") v=`<b>Fear is persisting: defensive.</b> VXN crossed above ${e.threshold} on ${dshort(e.date)} and is still ${e.now}; ${pct(e.share_above_persist,0)} of sessions since were at 30+. ${hist}`;
+    else if(rg.key==="late_rally") v=`<b>Calm and near the highs: rotate toward low beta.</b> VXN is ${rg.vxn_now} and the Nasdaq-100 is ${pct(-rg.ndx_from_high,1)} off its 1-year high (3 months: ${spct(rg.ndx_3m)}). This is the time to move part of your high-beta gains into the low-beta list, before the next dip rather than during it.`;
+    else v=`<b>No fear spike in play.</b> VXN ${rg.vxn_now}, Nasdaq-100 ${pct(-rg.ndx_from_high,1)} off its 1-year high. Keep a balanced mix and follow the scoreboard.`;
+  }
+  $("mkVerdict").innerHTML=`<div class="verdict ${rg&&(rg.key==="defensive"||rg.key==="fresh")?"warn":"ok"}">${v||"No VXN data."}</div>`;
+  // ---- tiles
+  const lv=(o,name,lines)=>o.latest?tile(name,o.latest.value,`${dshort(o.latest.date)} · ${o.index}${spark(o.spark,lines)}`):tile(name,"–",esc(o.error||"no data"));
+  $("mkTiles").innerHTML=lv(vx,"VXN (Nasdaq fear)",[31,35])+lv(vi,"VIX (S&P fear)",[25,30])+
+    (rg?tile("Nasdaq-100 vs 1-yr high",spct(rg.ndx_from_high),`3 months: ${spct(rg.ndx_3m)}`):"")+
+    (rg?tile("This month's mix",`${rg.high_beta_pct} / ${rg.low_beta_pct}`,`high beta / low beta · ${RG[rg.key].name}<div class="mix"><i class="hb" style="width:${rg.high_beta_pct}%"></i><i class="lb" style="width:${rg.low_beta_pct}%"></i></div>`):"");
+  // ---- study table
+  const rows=[];
+  for(const [k,o] of [["VXN",vx],["VIX",vi]]) for(const t of Object.keys(o.thresholds||{})){const s=o.thresholds[t],c=s.current;
+    rows.push(`<tr><td><b>${k} &gt; ${t}</b><br><span class="muted">${s.events.length} spikes since ${(o.first||"").slice(0,4)}</span></td><td>${statCell(s.from_cross["30"])}</td><td>${statCell(s.from_cross["60"])}</td><td>${statCell(s.from_cross["90"])}</td><td>${statCell(s.fading["60"])}</td><td>${statCell(s.persisting["60"])}</td><td>${c?`<span class="chip ${c.phase==="persisting"?"r":c.phase==="fading"?"g":"a"}">${c.phase} · ${dshort(c.date)}</span>`:'<span class="muted">–</span>'}</td></tr>`);}
+  $("mkStudy").innerHTML=`<thead><tr><th>Trigger</th><th>30 sessions</th><th>60</th><th>90</th><th>Fading → 60</th><th>Persisting → 60</th><th>Now</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+  $("mkStudyNote").innerHTML=`Index move after the day fear first closed above the line: <b>median</b> and <b>how many were up</b>. VXN is judged on the Nasdaq-100, VIX on the S&amp;P 500. <b>Fading / Persisting</b> uses only what you would know at the time: ${VR.decide_day} sessions after the crossing, was fear back below its line (VXN 30, VIX 25) or still above? Those returns start on that day. A new spike counts only if the last one was ${VR.cooldown}+ sessions earlier. Few events per row, so treat as tendencies, not odds.`;
+  const ev=(vx.thresholds||{})["35"];
+  if(ev) $("mkEvents").innerHTML=`<details class="ev"><summary>All ${ev.events.length} VXN &gt; 35 spikes</summary><div class="scroll"><table><thead><tr><th>Crossed</th><th>VXN</th><th>NDX off high</th><th>30</th><th>60</th><th>90</th><th>Day 20</th></tr></thead><tbody>${ev.events.slice().reverse().map(e=>`<tr><td>${e.date}</td><td>${e.level}</td><td>${spct(e.dd)}</td><td class="${e.r30>=0?"pos":"neg"}">${spct(e.r30)}</td><td class="${e.r60>=0?"pos":"neg"}">${spct(e.r60)}</td><td class="${e.r90>=0?"pos":"neg"}">${spct(e.r90)}</td><td>${e.persisting==null?'<span class="muted">pending</span>':e.persisting?'<span class="neg">persisting</span>':'<span class="pos">fading</span>'}</td></tr>`).join("")}</tbody></table></div></details>`;
+  // ---- rotation rule + your portfolio
+  $("mkRules").innerHTML=`<thead><tr><th>Market state</th><th>High / low beta</th></tr></thead><tbody>${RG_ORDER.map(k=>`<tr class="${rg&&rg.key===k?"now":""}"><td>${RG[k].name}<br><span class="muted" style="font-family:var(--font-body)">${RG[k].when}. ${RG[k].why}</span></td><td>${RG_MIX[k]} / ${100-RG_MIX[k]}</td></tr>`).join("")}</tbody>`;
+  const R=VR.rotation, B=R&&R.betas||{};
+  let pfHtml="";
+  const nr=nextReview(D.as_of_session);
+  if(pf.holdings&&pf.holdings.length&&R){
+    const hs=pf.holdings.filter(h=>h.market_value>0).map(h=>({...h,beta:B[h.ticker]}));
+    const known=hs.filter(h=>h.beta!=null), tot=known.reduce((s,h)=>s+h.market_value,0);
+    const pb=tot?known.reduce((s,h)=>s+h.beta*h.market_value,0)/tot:null;
+    const hi=known.filter(h=>h.beta>=1.2), hiV=hi.reduce((s,h)=>s+h.market_value,0), hiShare=tot?hiV/tot:0;
+    const tgt=rg?rg.high_beta_pct/100:0.5, move=(hiShare-tgt)*tot;
+    pfHtml=`<p class="note" style="margin-top:12px"><b>Your holdings:</b> portfolio beta <b>${pb!=null?pb.toFixed(2):"–"}</b>; <b>${pct(hiShare,0)}</b> in high-beta names (beta 1.2+)${hs.length>known.length?` · ${hs.length-known.length} holdings have no beta (not in the price history)`:""}. `+
+      (move>tot*0.05?`This month's mix calls for about ${pct(tgt,0)}: move roughly <b>${money(move)}</b> from high beta (${hi.sort((a,b)=>b.market_value-a.market_value).slice(0,5).map(h=>`${esc(h.ticker)} β${h.beta.toFixed(1)}`).join(", ")}) into the low-beta lists below, in stages.`
+       :move<-tot*0.05?`This month's mix allows about ${pct(tgt,0)} in high beta, so there is room to add <b>${money(-move)}</b> of high-beta growth on dips.`
+       :`That is close to this month's ${pct(tgt,0)} target, so no rotation is needed.`)+`</p>`;
+  }
+  $("mkPf").innerHTML=pfHtml+`<p class="note">Review once a month: next review <b>${nr.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</b>. Move in stages (about a third a week) and use each stock's Entry - Support price rather than buying all at once. Between reviews, act early only if this alert changes state (for example a fresh spike reaching its decision day).</p>`;
+  // ---- low-beta lists
+  const sig=t=>{const a=ALL.get(t);return a&&a.signal?`<span class="chip ${a.signal==="BUY"?"g":a.signal==="SELL"?"r":""}">${a.signal==="WATCHLIST"?"Watch":a.signal[0]+a.signal.slice(1).toLowerCase()}</span>`:'<span class="muted">–</span>'};
+  const zone=t=>{const a=ALL.get(t);return a&&a.current_price&&a.middle_bb&&a.support_lower_bb?(a.current_price<=a.middle_bb?'<span class="chip g">in buy zone</span>':`<span class="muted">${spct(a.middle_bb/a.current_price-1)} to zone</span>`):'<span class="muted">–</span>'};
+  const tbl=(list,showPick)=>`<thead><tr><th>#</th><th>Ticker</th><th>Beta</th><th>3 mo</th><th>6 mo ▼</th><th>From high</th><th>Signal</th><th>Buy zone</th></tr></thead><tbody>${(list||[]).map((x,n)=>`<tr${showPick&&!x.picked?' style="opacity:.55"':''}><td class="muted">${n+1}</td><td><b>${esc(x.t)}</b>${showPick&&x.picked?' <span class="chip g">in</span>':''}<br><span class="muted" style="font-family:var(--font-body)">${esc(x.desc||x.name||"")}</span></td><td>${x.beta.toFixed(2)}</td><td class="${x.r3>=0?"pos":"neg"}">${spct(x.r3,0)}</td><td class="${x.r6>=0?"pos":"neg"}">${spct(x.r6,0)}</td><td>${spct(x.from_high,0)}</td><td>${sig(x.t)}</td><td>${zone(x.t)}</td></tr>`).join("")}</tbody>`;
+  if(R){const bw=R.biweekly||{}, ch=(a,d)=>(a&&a.length?` · <span class="pos">in: ${a.join(", ")}</span>`:"")+(d&&d.length?` · <span class="neg">out: ${d.join(", ")}</span>`:"");
+    const nxt=bw.next_rotation?new Date(bw.next_rotation+"T00:00:00"):null, dueIn=nxt?Math.ceil((nxt-new Date(D.as_of_session+"T00:00:00"))/864e5):null;
+    const when=bw.rotated_on?`Picked <b>${dshort(bw.rotated_on)}</b> · next rotation <b>${nxt?dshort(bw.next_rotation):"–"}</b>${dueIn!=null?` (${dueIn<=0?"due at the next refresh":dueIn+" days"})`:""}`:"";
+    $("mkRotS").innerHTML=`${when}${ch(bw.added_stocks,bw.dropped_stocks)}. Every ${bw.rotate_days||14} days the 8 low-beta stocks (beta 0.1–0.8, steady, above the 200-day, no semis) with the best <b>6-month return</b> are re-picked from ${R.pool_size||"the"} eligible stocks; in between, the list stays put. In a 4-year test this pick averaged <b>+2.5%</b> over the next 3 months vs <b>+2.0%</b> for all eligible low-beta stocks (ahead 54% of the time): a small edge, not a forecast.`;
+    $("mkRotE").innerHTML=`${when}${ch(bw.added_etfs,bw.dropped_etfs)}. All low-beta ETFs ranked by 6-month return; the top 5 are marked <span class="chip g">in</span>. <b>Unlike stocks, ranking ETFs did not help</b> in the test (top 5 +3.1% vs +3.4% for holding them all over the next 3 months), so spread ETF money across several rather than chasing the top one.`;
+    $("mkLowS").innerHTML=tbl(R.low_beta_stocks); $("mkLowE").innerHTML=tbl(R.etf_pool||R.low_beta_etfs,true);
+    $("mkScreen").innerHTML=R.low_beta_screen.length?`<b>Next in line</b> (ranks ${(R.low_beta_stocks||[]).length+1}+, could enter at the next rotation): ${R.low_beta_screen.map(x=>`<span class="chip">${esc(x.t)} β${x.beta.toFixed(2)} 6m ${spct(x.r6,0)}</span>`).join(" ")}`:"";
+    const hb=[...R.high_beta_etfs,...R.high_beta_screen.filter(x=>!R.high_beta_etfs.some(y=>y.t===x.t))];
+    $("mkHigh").innerHTML=`<b>High-beta side</b> (for risk-on months): ${hb.map(x=>`<span class="chip ${x.r6>=0?"g":"r"}">${esc(x.t)} β${x.beta.toFixed(1)} ${spct(x.r6,0)}</span>`).join(" ")}`;}
+  else $("mkLowS").innerHTML=`<tbody><tr><td class="muted">Rotation lists need winrate_price_cache.pkl on the PC.</td></tr></tbody>`;
+  $("mkFoot").innerHTML=`Beta = how much a stock moved per 1% move in SPY over the last year (1.0 = same as the market). "Buy zone" = at or below its middle Bollinger band, your usual entry. Sources: ${Object.entries(VR.sources||{}).map(([k,s])=>`${k.replace("_IDX"," index")}: ${esc(s)}`).join(" · ")}. Built ${esc(VR.generated_at)}. Historical tendencies, not a forecast; not financial advice.`;
+}
+function render(){
+  const top=topRowsAt(D.watch_dates.length-1), pf=currentPortfolio(), held=new Set(pf.holdings.map(h=>h.ticker));
+  D._pfTotal=pf.total_value||0;
+  const plan=holdingPlan(pf,top,SB), sells=sellPlan(plan), trimCash=sells.reduce((s,x)=>s+x.usd,0);
+  renderHoldings(plan,pf,top); renderUploadStatus(pf);
+  const bp=buyPlan(top,held,trimCash,SB); renderBuys(bp,trimCash,SB); renderRealign(plan,sells,bp,SB); renderPlan(plan,bp,SB);
+  try{renderDipWatch(held)}catch(e){console.error("Dip watch:",e)}
+  try{renderMarket(pf)}catch(e){console.error("Market & rotation:",e)}
+  if(!PNL_DONE){PNL_DONE=true; try{renderPnl()}catch(e){console.error("Actual P&L:",e)}}
+  document.querySelectorAll("#useTrim button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===P.useTrim)));
+  document.querySelectorAll("#cap button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.v===+P.cap)));
+}
+function boot([pick,dash]){
+  D=pick; T=dash; ALL=new Map((dash.all_tickers||[]).map(t=>[t.ticker,t]));
+  const m0=new Date(D.as_of_session+"T00:00:00"), m2=new Date(m0.getFullYear(),m0.getMonth()+2,1);
+  $("title").textContent=`${m0.toLocaleDateString("en-US",{month:"short"})} → ${m2.toLocaleDateString("en-US",{month:"short",year:"numeric"})}`;
+  $("meta").innerHTML=`<span>Session <b>${dshort(D.as_of_session)}</b> close</span>`+(dash.portfolio?`<span>Portfolio <b>${money(dash.portfolio.total_value)}</b></span>`:"")+`<span>Tracker log <b>${D.logged_sessions}</b> sessions</span>`;
+  initUpload();
+  if(P.cash==null) P.cash=0;
+  // "as of" date for the cash box: amber after CASH_STALE_DAYS so you know to refresh it
+  window.cashAsOf=function(){const el=$("cashAsOf"),inp=$("cash");
+    if(!P.cashAt){el.textContent=P.cash?"date unknown: re-enter to date it":"not entered yet";el.className="asof"+(P.cash?" stale":"");inp.classList.toggle("stale",!!P.cash);return}
+    const d=new Date(P.cashAt+"T00:00:00"),age=Math.floor((new Date().setHours(0,0,0,0)-d)/864e5),stale=age>CASH_STALE_DAYS;
+    el.textContent=`entered ${d.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`+(stale?` · ${age} days old, update it`:age===0?" (today)":` (${age}d ago)`);
+    el.className="asof"+(stale?" stale":""); inp.classList.toggle("stale",stale);};
+  $("cash").value=P.cash;
+  $("cash").addEventListener("input",e=>{P.cash=Math.max(0,+e.target.value||0);P.cashAt=isoLocal(new Date());save();cashAsOf();render()});
+  cashAsOf();
+  $("useTrim").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;P.useTrim=b.dataset.v;save();render()});
+  $("cap").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;P.cap=+b.dataset.v;save();render()});
+  $("dwView").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;P.dwView=b.dataset.v;save();render()});
+  $("dwSort").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;P.dwSort=b.dataset.v;save();render()});
+  $("dwHideLow").addEventListener("change",e=>{P.dwHideLow=e.target.checked;save();render()});
+  $("dwSearch").addEventListener("input",e=>{DW_Q=e.target.value;render()});
+  $("dwMore").addEventListener("click",()=>{DW_ALL=!DW_ALL;render()});
+  prepRules(); SB=scoreRules(); renderScoreboard(SB); render();
+}
+// keep the sticky offsets in step with the real heights of the settings bar and a section title
+(function(){const root=document.documentElement,ctl=document.querySelector(".controls"),dh=document.querySelector(".desk-head");
+  const sync=()=>{const phone=matchMedia("(max-width:600px)").matches;root.style.setProperty("--ctl-h",(phone?0:ctl.offsetHeight)+"px");root.style.setProperty("--dh",(dh?dh.offsetHeight:44)+"px")};
+  sync();addEventListener("resize",sync);if(window.ResizeObserver)new ResizeObserver(sync).observe(ctl)})();
+const get=f=>fetch(f+"?v="+Date.now(),{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error(f+" "+r.status);return r.json()});
+const valP=window.Valuation?Valuation.load():Promise.resolve();  // for the Valuation buttons
+Promise.all([get("pick_tracker_data.json"),get(PUBLIC?"public_data.json":"dashboard_data.json"),Promise.resolve({tickers:{}}),valP,get("dip_watch_data.json").catch(()=>null),Promise.resolve(null)   /* HK: section 0 not built yet */])
+  .then(([pick,dash,val,,dw,vr])=>{V=val.tickers||{};DW=dw;VR=vr;boot([pick,dash])})
+  .catch(err=>{$("meta").textContent="Could not load data: "+err.message+". Run the daily pipeline and publish again.";});
+})();
+</script>
+</body>
+</html>

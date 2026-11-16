@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>HK Pick Tracker · Market Desk</title>
+<script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('market-desk-theme')==='light'?'light':'dark')}catch(e){}</script>
+</head>
+<body>
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: Market Desk sibling page. Sticky control strip, then three stacked desks
+     (entry watch -> hit rate -> dollars), each a summary line + chart/table. Dark-first. */
+  :root{
+    --bg:#0B1220; --panel:#111B2E; --panel-2:#0E1729; --line:#1E2C46;
+    --ink:#E7ECF5; --ink-dim:#8FA0BE; --ink-faint:#5A6A87;
+    --amber:#E3A63E; --amber-soft:#3A2D16;
+    --green:#3FBF7F; --green-soft:#173A2B; --red:#E0596B; --red-soft:#3D1F28;
+    --t1:#6B5226; --t2:#94702E; --t3:#C08F38; --t4:#E3A63E; --t5:#F6D493;
+    --font-display:'IBM Plex Sans Condensed','IBM Plex Sans',Arial Narrow,sans-serif;
+    --font-body:'IBM Plex Sans',system-ui,sans-serif;
+    --font-data:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+    color-scheme:dark;
+  }
+  @media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+    --bg:#F4F5F8; --panel:#FFFFFF; --panel-2:#ECEEF3; --line:#DDE1EA;
+    --ink:#101827; --ink-dim:#51607A; --ink-faint:#8994A8;
+    --amber:#B6791A; --amber-soft:#F6EAD3;
+    --green:#1C8A57; --green-soft:#DDF2E6; --red:#C93B54; --red-soft:#FBE1E6;
+    --t1:#D8B677; --t2:#C49240; --t3:#A6741C; --t4:#7F570F; --t5:#553908;
+    color-scheme:light; } }
+  :root[data-theme="light"]{
+    --bg:#F4F5F8; --panel:#FFFFFF; --panel-2:#ECEEF3; --line:#DDE1EA;
+    --ink:#101827; --ink-dim:#51607A; --ink-faint:#8994A8;
+    --amber:#B6791A; --amber-soft:#F6EAD3;
+    --green:#1C8A57; --green-soft:#DDF2E6; --red:#C93B54; --red-soft:#FBE1E6;
+    --t1:#D8B677; --t2:#C49240; --t3:#A6741C; --t4:#7F570F; --t5:#553908;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:0 56px}
+  .num{font-family:var(--font-data);font-variant-numeric:tabular-nums}
+  header.top{padding-block:22px 14px;display:flex;flex-wrap:wrap;gap:8px 24px;align-items:flex-end;justify-content:space-between}
+  .eyebrow{font-family:var(--font-data);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin:0 0 4px}
+  h1{font-family:var(--font-display);font-size:30px;line-height:1.05;margin:0;letter-spacing:-.01em;text-wrap:balance}
+  .meta{font-size:12px;color:var(--ink-dim);display:flex;flex-wrap:wrap;gap:4px 16px}
+  .meta b{color:var(--ink);font-weight:500}
+  .controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-block:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:10px 22px}
+  .ctl{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .ctl label,.ctl .lbl{font-family:var(--font-data);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+  .seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:2px;flex-wrap:wrap}
+  .seg button{font:500 12px var(--font-body);color:var(--ink-dim);background:none;border:0;border-radius:7px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+  .seg button[aria-pressed="true"]{background:var(--amber);color:var(--bg)}
+  .seg button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  select{font:500 12px var(--font-body);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 8px}
+  section.desk{margin-top:30px}
+  .desk-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin-bottom:6px}
+  .desk-head .idx{font-family:var(--font-data);font-size:12px;color:var(--amber)}
+  h2{font-family:var(--font-display);font-size:21px;margin:0;letter-spacing:-.005em}
+  .lede{color:var(--ink-dim);max-width:72ch;margin:0 0 14px;font-size:13px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .tile .k{font-family:var(--font-data);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:flex;align-items:center;gap:6px}
+  .tile .v{font-family:var(--font-data);font-size:24px;font-weight:600;margin-top:2px}
+  .tile .s{font-size:11px;color:var(--ink-dim)}
+  .sw{width:10px;height:10px;border-radius:3px;display:inline-block;flex-shrink:0}
+  .grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px}
+  @media (max-width:860px){.grid2{grid-template-columns:minmax(0,1fr)}}
+  @media (max-width:600px){.controls{position:static}.co{max-width:110px}}
+  .chart-box{position:relative;height:280px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* frozen header row + Stock column: table scrolls inside its own box so the header and the horizontal scrollbar stay in view */
+  .scroll.freeze{overflow:auto;max-height:max(320px,calc(100vh - var(--ctl-h,0px) - var(--dh,48px) - 36px))}
+  /* section title stays pinned under the filter bar while you are inside sections 1 and 2 */
+  #board .desk-head,#watch .desk-head{position:sticky;top:var(--ctl-h,0px);z-index:4;background:var(--bg);padding-block:8px;margin-bottom:0}
+  /* second horizontal scrollbar on top of the table, synced with the one at the bottom */
+  .hbar{overflow-x:auto;overflow-y:hidden;height:16px;margin:0 0 4px;position:sticky;top:calc(var(--ctl-h,0px) + var(--dh,48px));z-index:4;background:var(--panel)}
+  .hbar>div{height:1px}
+  .hbar[hidden]{display:none}
+  .scroll-hint{font-size:11px;color:var(--ink-faint);margin:0 0 4px}
+  .scroll.freeze thead th{position:sticky;top:0;z-index:2;background:var(--panel);border-bottom:0;box-shadow:inset 0 -1px 0 var(--line)}
+  .scroll.freeze th:first-child,.scroll.freeze td:first-child{position:sticky;left:0;z-index:1;background:var(--panel);box-shadow:inset -1px 0 0 var(--line)}
+  .scroll.freeze thead th:first-child{z-index:3}
+  .scroll.freeze tr.sel td:first-child{background:var(--amber-soft)}
+  @media (max-width:600px){.scroll.freeze{max-height:75vh}}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th{font-family:var(--font-data);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:500;text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-family:var(--font-data);font-variant-numeric:tabular-nums}
+  th:first-child,td:first-child{text-align:left}
+  tr.sel td{background:var(--amber-soft)}
+  tbody tr.clickable{cursor:pointer}
+  tbody tr.clickable:hover td{background:var(--panel-2)}
+  td.muted,.muted{color:var(--ink-faint)}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  .tk{font-weight:600;color:var(--ink);font-family:var(--font-data)}
+  .co{display:block;font:400 11px var(--font-body);color:var(--ink-faint);max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .pill{display:inline-block;font:600 10.5px var(--font-data);padding:2px 7px;border-radius:999px;letter-spacing:.03em}
+  .pill.hot{background:var(--green-soft);color:var(--green)}
+  .pill.warm{background:var(--amber-soft);color:var(--amber)}
+  .pill.cold{background:var(--panel-2);color:var(--ink-faint)}
+  .setup{display:inline-block;font:600 10px var(--font-data);letter-spacing:.03em;border-radius:5px;padding:1px 6px;margin:1px 0;white-space:nowrap}
+  .setup.sr{background:var(--amber);color:var(--bg);border:1px solid var(--amber)}
+  .setup.nd{background:var(--red-soft);color:var(--red);border:1px solid var(--red)}
+  .t30tag{font:600 9.5px var(--font-data);color:var(--ink-dim);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px;white-space:nowrap}
+  .score-tbl td.lbl{text-align:left;white-space:normal;font-family:var(--font-body);min-width:200px}
+  .score-tbl .sub{display:block;font:400 11px var(--font-body);color:var(--ink-faint)}
+  .setup.disc{background:var(--green-soft);color:var(--green);border:1px solid var(--green)}
+  .streak{font:400 11px var(--font-data);color:var(--ink-dim);white-space:nowrap}
+  .streak b{font-weight:600}
+  .strip{display:inline-flex;gap:3px;vertical-align:middle}
+  .strip i{width:13px;height:18px;border-radius:3px;background:var(--panel-2);border:1px solid var(--line);display:block;position:relative}
+  .strip i.hit{background:var(--green);border-color:var(--green)}
+  .strip i.miss{background:transparent}
+  .strip i.na{background:repeating-linear-gradient(135deg,var(--line) 0 2px,transparent 2px 5px)}
+  .strip i.wk{margin-left:5px}
+  .strip.dense i{width:9px}
+  .strip.dense i.in20::after{left:2px;right:2px}
+  .strip i.in20::after{content:"";position:absolute;left:3px;right:3px;bottom:-5px;height:2px;border-radius:2px;background:var(--amber)}
+  .days-list{font:400 11px var(--font-body);color:var(--ink-dim);white-space:normal;text-align:left;min-width:160px;max-width:260px}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11.5px;color:var(--ink-dim);margin:2px 0 10px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .note{font-size:12px;color:var(--ink-dim);margin-top:10px;max-width:80ch}
+  .note b{color:var(--ink);font-weight:600}
+  details{margin-top:12px}
+  summary{cursor:pointer;color:var(--amber);font-weight:500;font-size:13px}
+  .tip{position:fixed;z-index:20;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:12px var(--font-data);color:var(--ink);box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:240px}
+  .bar-cell{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+  .mini{height:6px;border-radius:3px;background:var(--t4);display:inline-block}
+  footer{margin-top:36px;color:var(--ink-faint);font-size:11.5px;max-width:90ch}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  .board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  @media (max-width:760px){.board{grid-template-columns:minmax(0,1fr)}}
+  .rank{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+  .rank li{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+  .rank li:last-child{border-bottom:0}
+  .rank .no{font:500 11px var(--font-data);color:var(--ink-faint)}
+  .rank .who{min-width:0}
+  .rank .who .tk{font-size:13px}
+  .rank .who small{display:block;font-size:11px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rank .val{text-align:right;font-family:var(--font-data);font-variant-numeric:tabular-nums}
+  .rank .val b{display:block;font-size:14px;font-weight:600}
+  .rank .val small{font-size:11px;color:var(--ink-dim)}
+  .rank .barline{grid-column:2 / 4;height:4px;border-radius:2px;background:var(--panel-2);overflow:hidden}
+  .rank .barline span{display:block;height:100%;border-radius:2px}
+  .board h3{font-family:var(--font-display);font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:10px}
+  input[type=search]{font:500 13px var(--font-body);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 10px;min-width:0;width:180px}
+  input[type=search]:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  th.sort{cursor:pointer;user-select:none}
+  /* row numbers + Excel-style column filters (section 1 table) */
+  .stk{display:flex;align-items:flex-start;gap:6px}
+  .ranktag{white-space:nowrap;font:600 9.5px var(--font-data);color:var(--bg);background:var(--green);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:1px;cursor:help}
+  .rn{font:500 11px var(--font-data);color:var(--ink-faint);min-width:2.4em;text-align:right;padding-top:2px;flex-shrink:0}
+  .fbtn{font:600 10px var(--font-data);color:var(--ink-faint);background:none;border:1px solid transparent;border-radius:5px;padding:0 3px;margin-left:4px;cursor:pointer;line-height:15px;vertical-align:1px}
+  .fbtn:hover{color:var(--ink);border-color:var(--line)}
+  .fbtn.on{color:var(--bg);background:var(--amber);border-color:var(--amber)}
+  .fbtn:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+  .fpop{position:fixed;z-index:30;width:260px;max-width:calc(100vw - 24px);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);font:13px var(--font-body);color:var(--ink)}
+  .fpop h4{margin:0 0 8px;font:600 10px var(--font-data);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .fpop .row{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+  .fpop input[type=text],.fpop input[type=number],.fpop input[type=date],.fpop select{font:500 13px var(--font-body);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0;width:100%}
+  .fpop .unit{font:500 12px var(--font-data);color:var(--ink-dim)}
+  .fpop .chk{display:flex;flex-direction:column;gap:4px;max-height:200px;overflow:auto;margin-bottom:8px}
+  .fpop .chk label{display:flex;gap:8px;align-items:center;cursor:pointer}
+  .fpop .acts{display:flex;gap:6px;justify-content:flex-end;margin-top:4px}
+  .btn.pri,.fpop .acts .btn.pri{background:var(--amber);color:var(--bg);border-color:var(--amber)}
+  .fchips{display:flex;flex-wrap:wrap;gap:6px;margin:-2px 0 8px}
+  .fchip{font:500 11px var(--font-data);color:var(--amber);background:var(--amber-soft);border:1px solid var(--amber);border-radius:999px;padding:2px 4px 2px 8px;display:inline-flex;align-items:center;gap:4px}
+  .fchip button{font:600 11px var(--font-data);color:var(--amber);background:none;border:0;cursor:pointer;padding:0 4px}
+  th.sort:hover{color:var(--ink)}
+  th.sort[aria-sort="descending"]::after{content:" ▼";color:var(--amber)}
+  th.sort[aria-sort="ascending"]::after{content:" ▲";color:var(--amber)}
+  .btn{font:500 12px var(--font-body);color:var(--amber);background:none;border:1px solid var(--line);border-radius:9px;padding:6px 12px;cursor:pointer}
+  .btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  .sig{font:600 10px var(--font-data);padding:1px 6px;border-radius:999px}
+  .sig.B{background:var(--green-soft);color:var(--green)} .sig.W{background:var(--amber-soft);color:var(--amber)} .sig.S{background:var(--red-soft);color:var(--red)}
+  .t20tag{font:600 9.5px var(--font-data);color:var(--amber);border:1px solid var(--amber);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px}
+  .jumptag{font:600 9.5px var(--font-data);color:var(--red);border:1px solid var(--red);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px;white-space:nowrap}
+  .addw{font:600 9.5px var(--font-data);color:var(--ink-dim);background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:5px;cursor:pointer;vertical-align:1px}
+  .addw:hover{color:var(--amber);border-color:var(--amber)}
+  .addw:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+  .trgtag{font:600 9.5px var(--font-data);color:var(--green);border:1px solid var(--green);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px;white-space:nowrap}
+  tr.flash td{animation:flash 1.6s ease-out}
+  @keyframes flash{from{background:var(--amber-soft)}to{background:transparent}}
+  .tile-btn{font:inherit;color:inherit;text-align:left;cursor:pointer;width:100%}
+  .tile-btn:hover{border-color:var(--amber)}
+  .tile-btn[aria-pressed="true"]{border-color:var(--amber);background:var(--amber-soft)}
+  .tile-btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  .calc{background:var(--amber);color:var(--bg);border-color:var(--amber);font-weight:600;padding:7px 16px}
+  .calc:hover{filter:brightness(1.08)}
+  input[type=number]{font:500 13px var(--font-data);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 10px;min-width:0}
+  input[type=number]:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  #planOut .panel{margin-top:12px}
+  .plan-sum{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:13px;color:var(--ink-dim);margin-top:10px}
+  .plan-sum b{color:var(--ink)}
+  tr.base td{color:var(--ink-dim);font-style:italic}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <style>.page-nav{display:inline-flex;gap:4px;margin:0 0 10px;padding:3px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line);flex-wrap:wrap}.page-nav a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9px;color:var(--ink-dim);font:500 12px var(--font-data);letter-spacing:.04em;text-decoration:none;white-space:nowrap}.page-nav a:hover{color:var(--amber)}.page-nav a[aria-current="page"]{background:var(--amber);color:#111;cursor:default}.page-nav a:focus-visible{outline:2px solid var(--amber);outline-offset:2px}</style><nav class="page-nav" aria-label="Market Desk pages"><a href="index.html" data-nav="desk" title="Back to HK Market Desk">‹ HK Market Desk</a><a href="tracker.html" data-nav="tracker" title="Pick Tracker: how past recommendations performed" aria-current="page">Tracker</a><a href="lookahead.html" data-nav="look" title="Look-ahead Strategy: what to change over the next 3 months">Look-ahead</a></nav><script>(function(){if(!/(^|[?&])from=public\b/.test(location.search))return;document.querySelectorAll(".page-nav a").forEach(function(a){a.href=a.dataset.nav==="desk"?"index.html":a.getAttribute("href")})})()</script>
+      <p class="eyebrow">Recommendation follow-through</p>
+      <h1>Pick Tracker</h1>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <div class="controls" role="toolbar" aria-label="Dashboard settings">
+    <div class="ctl"><span class="lbl">Picks</span>
+      <div class="seg" id="src">
+        <button type="button" data-v="top20" aria-pressed="true">Top 20</button>
+        <button type="button" data-v="buy" aria-pressed="false">All BUY signals</button>
+        <button type="button" data-v="trigger" aria-pressed="false" title="On trial: the buy-trigger rule">Buy triggers</button>
+      </div></div>
+    <div class="ctl"><span class="lbl">Pick window</span>
+      <div class="seg" id="win">
+        <button type="button" data-v="1" aria-pressed="false">1 mo</button>
+        <button type="button" data-v="3" aria-pressed="true">3 mo</button>
+        <button type="button" data-v="0" aria-pressed="false">All</button>
+      </div></div>
+    <div class="ctl"><span class="lbl">Weekly average price</span>
+      <div class="seg" id="refMode">
+        <button type="button" data-v="se" aria-pressed="true">Avg Suggested Entry</button>
+        <button type="button" data-v="rec" aria-pressed="false">Avg close on Top-20 days</button>
+      </div></div>
+    <div class="ctl"><span class="lbl">Measure weekly gain by</span>
+      <div class="seg" id="measure">
+        <button type="button" data-v="close" aria-pressed="true">Close at week end</button>
+        <button type="button" data-v="peak" aria-pressed="false">Best close so far</button>
+      </div></div>
+  </div>
+
+  <!-- planner -->
+  <section class="desk" id="planner">
+    <div class="desk-head"><span class="idx">★</span><h2>Buy / sell planner</h2></div>
+    <p class="lede">Type a ticker, choose Buy or Sell and how many entries, then tap <b>Calculate</b>. <b>Buy</b> splits the Support-to-Mid-BB range into equal steps (your ladder). <b>Sell</b> splits the Resistance-to-analyst-target range. Levels use the latest close data.</p>
+    <form class="panel" id="planForm" autocomplete="off">
+      <div class="toolbar" style="margin-bottom:0">
+        <div class="ctl"><label class="lbl" for="planTk">Ticker</label>
+          <input type="search" id="planTk" placeholder="e.g. AVGO" list="tickerList" style="width:130px"></div>
+        <div class="ctl"><span class="lbl">Side</span>
+          <div class="seg" id="planSide"><button type="button" data-v="buy" aria-pressed="true">Buy</button><button type="button" data-v="sell" aria-pressed="false">Sell</button></div></div>
+        <div class="ctl"><span class="lbl">Entries</span>
+          <div class="seg" id="planN"><button type="button" data-v="2" aria-pressed="true">2</button><button type="button" data-v="3" aria-pressed="false">3</button></div></div>
+        <div class="ctl" id="planMktWrap"><span class="lbl">Market</span>
+          <div class="seg" id="planMkt"><button type="button" data-v="auto" aria-pressed="true">Auto</button><button type="button" data-v="down" aria-pressed="false">Down</button><button type="button" data-v="up" aria-pressed="false">Up / flat</button></div></div>
+        <div class="ctl"><label class="lbl" for="planBudget">Budget ($)</label>
+          <input type="number" id="planBudget" min="0" step="100" value="3000" style="width:110px"></div>
+        <div class="ctl" id="planStopWrap"><label class="lbl" for="planStop">Stop below Support (%)</label>
+          <input type="number" id="planStop" min="0" max="20" step="0.5" value="3" style="width:90px"></div>
+        <div class="ctl" id="planEntryWrap" hidden><label class="lbl" for="planEntry">My entry price ($)</label>
+          <input type="number" id="planEntry" min="0" step="0.01" placeholder="optional" style="width:120px"></div>
+        <div class="ctl"><span class="lbl">&nbsp;</span><button type="submit" class="btn calc" id="planGo">Calculate</button></div>
+      </div>
+    </form>
+    <div id="planOut"></div>
+  </section>
+
+  <!-- 1 leaderboard -->
+  <section class="desk" id="board">
+    <div class="desk-head"><span class="idx">1</span><h2>Best and worst since day 1</h2></div>
+    <p class="lede" id="boardLede"></p>
+    <div class="toolbar">
+      <div class="ctl"><span class="lbl">Rank by</span>
+        <div class="seg" id="rankBy">
+          <button type="button" data-v="pct" aria-pressed="true">% gain / loss</button>
+          <button type="button" data-v="usd" aria-pressed="false">HK$ per share</button>
+          <button type="button" data-v="pos" aria-pressed="false">HK$ on HK$1,000</button>
+        </div></div>
+    </div>
+    <div class="tiles" id="boardTiles"></div>
+    <div class="board">
+      <div class="panel"><h3><i class="sw" style="background:var(--green)"></i>Best 10</h3><ol class="rank" id="best"></ol></div>
+      <div class="panel"><h3><i class="sw" style="background:var(--red)"></i>Worst 10</h3><ol class="rank" id="worst"></ol></div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <div class="toolbar">
+        <label class="lbl" for="boardSearch" style="font:500 10px var(--font-data);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)">Find a stock</label>
+        <input type="search" id="boardSearch" placeholder="Ticker or name" autocomplete="off">
+        <div class="seg" id="boardRows" role="group" aria-label="Rows shown">
+          <button type="button" data-v="30" aria-pressed="true" title="Top 30 rows = the Top 30 strong stocks used in section 2 (with the default Top 20 picks, 3 months, % to date)">Top 30 rows</button>
+          <button type="button" data-v="all" aria-pressed="false">All stocks</button>
+        </div>
+        <span class="muted" id="boardCount" style="font-size:12px"></span>
+        <button type="button" class="btn" id="boardReset" title="Clear every column filter and the search box, and go back to the default sort and Top 30 rows">Reset to default</button>
+      </div>
+      <div class="fchips" id="boardChips"></div>
+      <p class="scroll-hint">Tap a heading to sort. Tap ⏷ next to a heading to filter that column. Scroll sideways with the bar just below, Shift + mouse wheel, or a trackpad swipe.</p><div class="hbar" data-for="boardTable"><div></div></div><div class="scroll freeze"><table id="boardTable"></table></div>
+      <div style="margin-top:10px"><button type="button" class="btn" id="boardMore"></button></div>
+    </div>
+  </section>
+
+  <!-- 2 entry watch -->
+  <section class="desk" id="watch">
+    <div class="desk-head"><span class="idx">2</span><h2>Below-weekly-average days</h2></div>
+    <p class="lede" id="watchLede"></p>
+    <div class="toolbar">
+      <div class="ctl"><span class="lbl">Stocks</span>
+        <div class="seg" id="watchSet">
+          <button type="button" data-v="top20" aria-pressed="true">Today's Top 20</button>
+          <button type="button" data-v="buy" aria-pressed="false">Today's BUY signals</button>
+          <button type="button" data-v="trigger" aria-pressed="false">Buy triggers (last 5 days)</button>
+          <button type="button" data-v="top30" aria-pressed="false" title="Top 30 rows of section 1: Top 20 picks, last 3 months, ranked by % to date">Top 30 strong stocks</button>
+        </div></div>
+      <div class="ctl"><span class="lbl">Look-back</span>
+        <div class="seg" id="lookback">
+          <button type="button" data-v="5" aria-pressed="false">1 wk</button>
+          <button type="button" data-v="10" aria-pressed="true">2 wk</button>
+          <button type="button" data-v="20" aria-pressed="false">4 wk</button>
+          <button type="button" data-v="40" aria-pressed="false">8 wk</button>
+        </div></div>
+      <div class="ctl"><label class="lbl" for="watchSearch">Add any ticker</label>
+        <input type="search" id="watchSearch" placeholder="e.g. NVDA" autocomplete="off" list="tickerList"></div>
+      <div class="ctl"><span class="lbl">Bid near close</span>
+        <div class="seg" id="nearBid" role="group" aria-label="Only show stocks whose Bid now is near the close">
+          <button type="button" data-v="0" aria-pressed="true">All</button>
+          <button type="button" data-v="2" aria-pressed="false">≤ 2%</button>
+          <button type="button" data-v="3" aria-pressed="false">≤ 3%</button>
+          <button type="button" data-v="5" aria-pressed="false">≤ 5%</button>
+        </div></div>
+      <datalist id="tickerList"></datalist>
+    </div>
+    <div class="tiles" id="watchTiles"></div>
+    <div class="panel">
+      <div class="legend">
+        <span><i class="sw" style="background:var(--green)"></i>Closed below weekly avg (buy-at-avg would fill)</span>
+        <span><i class="sw" style="border:1px solid var(--line)"></i>Closed above</span>
+        <span><i class="sw" style="background:repeating-linear-gradient(135deg,var(--line) 0 2px,transparent 2px 5px)"></i>No weekly avg available</span>
+        <span><i class="sw" style="height:3px;background:var(--amber)"></i>In Top 20 that day</span>
+      </div>
+      <div class="toolbar"><span class="muted" id="watchCount" style="font-size:12px"></span>
+        <button type="button" class="btn" id="watchReset" title="Clear every column filter and Bid near close, and go back to the default sort">Reset to default</button></div>
+      <div class="fchips" id="watchChips"></div>
+      <p class="scroll-hint">Tap a heading to sort. Tap ⏷ next to a heading to filter that column. Scroll sideways with the bar just below, Shift + mouse wheel, or a trackpad swipe.</p><div class="hbar" data-for="watchTable"><div></div></div><div class="scroll freeze"><table id="watchTable"></table></div>
+    </div>
+    <div class="panel" style="margin-top:12px" id="rulePanel">
+      <h3 style="margin:0 0 4px;font:600 15px var(--font-display)">Rule scorecard: are the tags working?</h3>
+      <p class="note" id="ruleLede" style="margin:0 0 10px"></p>
+      <div class="scroll"><table id="ruleTable" class="score-tbl"></table></div>
+    </div>
+  </section>
+
+  <!-- 3 hit rate -->
+  <section class="desk" id="hits">
+    <div class="desk-head"><span class="idx">3</span><h2>Hit rate, week 1 to week 13</h2></div>
+    <p class="lede" id="hitLede"></p>
+    <div class="tiles" id="hitTiles"></div>
+    <div class="grid2">
+      <div class="panel"><div class="legend" id="hitLegend"></div><div class="chart-box"><canvas id="hitChart" aria-label="Hit rate by week chart" role="img"></canvas></div></div>
+      <div class="panel"><div class="scroll"><table id="hitTable"></table></div>
+        <p class="note">Tap a week to update the tiles. <b>n</b> is the number of picks tracked for at least that many weeks. The italic <b>Market</b> row is every ticker on every logged day, for comparison.</p></div>
+    </div>
+  </section>
+
+  <!-- 4 dollars -->
+  <section class="desk" id="dollars">
+    <div class="desk-head"><span class="idx">4</span><h2>Dollar gain, week 1 to week 13</h2></div>
+    <p class="lede" id="usdLede"></p>
+    <div class="tiles" id="usdTiles"></div>
+    <div class="grid2">
+      <div class="panel"><div class="legend"><span><i class="sw" style="background:var(--green)"></i>Avg HK$ gain per HK$1,000 per pick</span><span><i class="sw" style="background:var(--red)"></i>Avg HK$ loss</span><span><i class="sw" style="height:2px;background:var(--ink-dim)"></i>Market avg</span></div><div class="chart-box"><canvas id="usdChart" aria-label="Average dollar gain by week chart" role="img"></canvas></div></div>
+      <div class="panel"><div class="scroll"><table id="usdTable"></table></div></div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <p class="note" style="margin-top:0">Dollar gain by hit tier for <b id="usdTierWeek"></b>. Each row covers the picks that cleared that tier.</p>
+      <div class="scroll"><table id="usdTier"></table></div>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+(function(){
+const TIERS=[{k:0,label:"Above rec price",short:">0%",tok:"--t1"},{k:.05,label:"≥ 5%",short:"≥5%",tok:"--t2"},{k:.10,label:"≥ 10%",short:"≥10%",tok:"--t3"},{k:.15,label:"≥ 15%",short:"≥15%",tok:"--t4"},{k:.20,label:"≥ 20%",short:"≥20%",tok:"--t5"}];
+const SIGN={B:"BUY",W:"WATCH",S:"SELL"};
+const S={src:"top20",win:3,ref:"se",measure:"close",week:4,look:10,watchSet:"top20",near:0,rankBy:"pct",sortKey:"pct",sortDir:-1};
+try{Object.assign(S,JSON.parse(localStorage.getItem("pickTrackerPrefs2")||"{}"))}catch(e){}
+const extra=new Set(); const BOARD_TOP=30; let boardShow=BOARD_TOP;  /* 2026-10-17: 20 -> 30 rows, to match section 2 "Top 30 strong stocks" */
+/* Excel-style column filters, shared by the section 1 and section 2 tables */
+const BCOLS=[["t","Stock","text"],["d","Day 1","date"],["rp","Day-1 price","money"],["lc","Now","money"],["days","Days","int"],["pct","% to date","pct"],["usd","HK$ / share","money"],["pos","HK$ on HK$1k","money"],["hi","Best since","pct"],["lo","Worst since","pct"],["n","Times picked","int"],["sig","Signal now","list"]];
+/* REBOUND tag removed 2026-10-12: a 3-year backtest (backtest_box_momentum.py) found no reliable edge. Streak now still shows the pattern. */
+const SETUPS={SR:"Strong rebound",D:"Discount",ND:"No dip – don't chase","-":"No setup"};
+/* Box rules, from the 3-year backtest (backtest_box_momentum.py, 2026-10-12):
+   STRONG REBOUND = stock is in the top 30 rows of section 1 (Top 20 picks, 3 months, ranked by % to date)
+                    AND its newest boxes are 2-6 white days in a row right after 2+ green days. ~2-week idea.
+   NO DIP         = newest box is white and there was no real dip before it (fewer than 2 green days in a row).
+   Forward test counts from RULES_LIVE_FROM; earlier sessions are shown separately as history. */
+const SR_TOP=30, SR_MONTHS=3, SR_MIN_WHITE=2, SR_MAX_WHITE=6, SR_MIN_GREEN=2, ND_MAX_GREEN=1, RULE_HORIZON=10, RULES_LIVE_FROM="2026-10-12";
+function cutoffFor(dateStr,months){const a=new Date(dateStr+"T00:00:00");a.setMonth(a.getMonth()-months);return isoLocal(a)}
+function isoLocal(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}  /* local date, not UTC: toISOString shifted dates by a day in Malaysia (UTC+8) */
+/* top N rows of section 1 as they stood on session index i (Top 20 picks, 3-month window, % to date) */
+function topRowsAt(i,n=SR_TOP){
+  const d=D.watch_dates[i], cut=cutoffFor(d,SR_MONTHS), first={};
+  for(const e of D.events){ if(e.src!=="top20"||e.d<cut||e.d>d) continue; if(!first[e.t]||e.d<first[e.t].d) first[e.t]=e; }
+  const ranked=[]; for(const t in first){const w=D.watch[t]; const c=w?w.c[i]:null; if(c!=null&&first[t].rp>0) ranked.push([t,c/first[t].rp-1]);}
+  ranked.sort((a,b)=>b[1]-a[1]); const m=new Map(); ranked.slice(0,n).forEach(([t],k)=>m.set(t,k+1)); return m;
+}
+/* box state per session for one stock: 1 green, 0 white, null no data */
+function boxStates(w,mode){const n=D.watch_dates.length,out=new Array(n).fill(null);for(let i=0;i<n;i++){const a=weeklyAvg(w,i,mode),c=w.c[i];if(a!=null&&c!=null)out[i]=a>c?1:0}return out}
+/* newest run at session i, read backwards over the full history */
+/* wCut / gCut = that run reaches the start of the data, so its true length (and what came before) is unknown */
+function streakAt(st,i){let k=i,wRun=null,gRun=0,curG=0,wCut=false,gCut=false;const run=v=>{let m=0;while(k>=0&&st[k]===v){m++;k--}return m};
+  const atStart=()=>k<0||st[k]==null;
+  if(st[i]===0){wRun=run(0);wCut=atStart();if(!wCut){gRun=run(1);gCut=atStart()}} else if(st[i]===1){curG=run(1);wRun=0} return {wRun,gRun,curG,wCut,gCut}}
+const isSR=(s,inTop)=>inTop&&!s.wCut&&s.wRun>=SR_MIN_WHITE&&s.wRun<=SR_MAX_WHITE&&s.gRun>=SR_MIN_GREEN;
+const isND=s=>!s.wCut&&!s.gCut&&s.wRun>=1&&s.gRun<=ND_MAX_GREEN;   // only when the dip (or lack of one) is actually visible
+const WCOLS=[["t","Stock","text"],["hits","Green days","int"],["setup","Setup","setup"],["wRun","White days since green","int"],["last","Close","money"],["bid","Bid now","money"],["gap","vs close","pct"],["mb","Mid BB","money"],["half","Ladder ½","money"],["lb","Support","money"],["ms","Score","int"],["hitDays","Which days","days"]];
+const TBL={board:{cols:BCOLS,key:"pickTrackerBoardFilters",F:{}},watch:{cols:WCOLS,key:"pickTrackerWatchFilters",F:{}}};
+for(const id in TBL){try{TBL[id].F=JSON.parse(localStorage.getItem(TBL[id].key)||"{}")||{}}catch(e){}}
+{const f=TBL.watch.F.setup;if(f&&f.sel){f.sel=f.sel.filter(x=>x in SETUPS);if(!f.sel.length||f.sel.length>=Object.keys(SETUPS).length)delete TBL.watch.F.setup}}  /* drop options that no longer exist (e.g. Rebound) */
+const saveF=id=>{try{localStorage.setItem(TBL[id].key,JSON.stringify(TBL[id].F))}catch(e){}};
+const OPS={gt:">",ge:"≥",lt:"<",le:"≤",eq:"=",bt:"between"};
+function fPass(id,r){
+  const F=TBL[id].F;
+  for(const k in F){const f=F[k],v=r[k],ty=(TBL[id].cols.find(c=>c[0]===k)||[])[2];
+    if(ty==="text"){const q=(f.q||"").toLowerCase();if(q&&!(r.t.toLowerCase().includes(q)||(r.co||"").toLowerCase().includes(q)))return false}
+    else if(ty==="date"){if(f.from&&v<f.from)return false;if(f.to&&v>f.to)return false}
+    else if(ty==="days"){if(!(v||[]).some(d=>(!f.from||d>=f.from)&&(!f.to||d<=f.to)))return false}
+    else if(ty==="list"){if(!f.sel.includes(v||"-"))return false}
+    else if(ty==="setup"){const have=v&&v.length?v:["-"];if(!have.some(x=>f.sel.includes(x)))return false}
+    else{ if(v==null||isNaN(v))return false;
+      const m=ty==="pct"?100:1, x=v*m, a=+f.a, b=+f.b, tol=ty==="pct"?.05:ty==="money"?.005:0;
+      if(f.op==="gt"&&!(x>a))return false; if(f.op==="ge"&&!(x>=a-tol))return false;
+      if(f.op==="lt"&&!(x<a))return false; if(f.op==="le"&&!(x<=a+tol))return false;
+      if(f.op==="eq"&&!(Math.abs(x-a)<=tol))return false;
+      if(f.op==="bt"&&!(x>=Math.min(a,b)-tol&&x<=Math.max(a,b)+tol))return false;}
+  }
+  return true;
+}
+function fLabel(id,k){const f=TBL[id].F[k],c=TBL[id].cols.find(c=>c[0]===k);if(!f||!c)return"";const ty=c[2],u=ty==="pct"?"%":"",pre=ty==="money"?"HK$":"";
+  if(ty==="text")return`${c[1]} contains "${f.q}"`;
+  if(ty==="date"||ty==="days"){const rng=f.from&&f.to?`${dshort(f.from)} → ${dshort(f.to)}`:f.from?`from ${dshort(f.from)}`:`up to ${dshort(f.to)}`;return ty==="days"?`Green day ${rng}`:`${c[1]} ${rng}`}
+  if(ty==="list")return`${c[1]}: ${f.sel.map(x=>SIGN[x]||"none").join(", ")}`;
+  if(ty==="setup")return`Setup: ${f.sel.map(x=>SETUPS[x]).join(" or ")}`;
+  return f.op==="bt"?`${c[1]} ${pre}${f.a}${u} to ${pre}${f.b}${u}`:`${c[1]} ${OPS[f.op]} ${pre}${f.a}${u}`;}
+const fBtn=(id,k,label)=>`<button type="button" class="fbtn${TBL[id].F[k]?" on":""}" data-tbl="${id}" data-f="${k}" aria-label="Filter ${label}" title="Filter ${label}">⏷</button>`;
+const fChips=id=>Object.keys(TBL[id].F).map(k=>`<span class="fchip">${esc(fLabel(id,k))}<button type="button" data-tbl="${id}" data-clr="${k}" aria-label="Remove filter">×</button></span>`).join("");
+let D=null,hitChart=null,usdChart=null;
+const $=id=>document.getElementById(id);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmtP=v=>v==null?"–":(v*100).toFixed(1)+"%";
+const fmtS=v=>v==null?"–":(v>=0?"+":"−")+(Math.abs(v*100)).toFixed(1)+"%";
+const money=(v,dp=0)=>v==null||isNaN(v)?"–":(v<0?"−HK$":"HK$")+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const smoney=(v,dp=0)=>v==null||isNaN(v)?"–":(v>=0?"+":"")+money(v,dp);
+const cls=v=>v==null?"muted":v>0?"pos":v<0?"neg":"";
+const dshort=iso=>new Date(iso+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const dlong=iso=>new Date(iso+"T00:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const daysBetween=(a,b)=>Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/864e5);
+function save(){try{localStorage.setItem("pickTrackerPrefs2",JSON.stringify(S))}catch(e){}}
+function tile(k,v,s,sw){return `<div class="tile"><div class="k">${sw?`<i class="sw" style="background:var(${sw})"></i>`:""}${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`}
+function bindSeg(id,key,num,after){
+  const el=$(id);
+  const sync=()=>el.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(String(S[key])===b.dataset.v)));
+  el.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;if(after)after();sync();save();render();});
+  sync();
+}
+const srcName=()=>({top20:"Top-20 picks",buy:"BUY-signal picks",trigger:"buy-trigger picks"})[S.src]||"picks";
+const srcVerb=()=>({top20:"entered the Top 20",buy:"got a BUY signal",trigger:"fired a buy trigger"})[S.src];
+const srcNew=()=>({top20:"newly enters the daily Top 20",buy:"gets a new BUY signal",trigger:"fires a new buy trigger (see section 2)"})[S.src];
+const winTxt=()=>S.win?`the last ${S.win} month${S.win>1?"s":""}`:"all logged history";
+function cutoff(){if(!S.win)return "0000";const a=new Date(D.as_of_session+"T00:00:00");a.setMonth(a.getMonth()-S.win);return isoLocal(a)}
+const windowEvents=()=>{const c=cutoff();return D.events.filter(e=>e.src===S.src&&e.d>=c)};
+
+/* ---------- 1. leaderboard ---------- */
+function boardRows(){
+  const by={};
+  for(const e of windowEvents()){(by[e.t]=by[e.t]||[]).push(e)}
+  const rows=[];
+  for(const t in by){
+    const evs=by[t].sort((a,b)=>a.d.localeCompare(b.d)), f=evs[0], info=D.tickers[t]||{};
+    if(f.lc==null) continue;
+    // best/worst close since day 1 = across every event of this stock (the first event spans the longest)
+    const pct=f.lc/f.rp-1;
+    const jump=evs.map(e=>e.jump).filter(Boolean).pop()||null;
+    rows.push({t,jump,co:info.co,cat:info.cat,sig:info.sig,t20:info.t20,d:f.d,rp:f.rp,lc:f.lc,pct,usd:f.lc-f.rp,pos:1000*pct,
+      hi:f.hi!=null?f.hi/f.rp-1:null,lo:f.lo!=null?f.lo/f.rp-1:null,n:evs.length,days:daysBetween(f.d,D.last_price_date),ms:f.ms});
+  }
+  return rows;
+}
+function renderBoard(){
+  const rows=boardRows(), k=S.rankBy;
+  const unit=k==="pct"?"%":k==="usd"?"HK$ per share":"HK$ on HK$1,000";
+  $("boardLede").innerHTML=`Each stock is measured from <b>day 1</b>, the first day it was recommended (${srcVerb()}) in ${winTxt()}, to the latest close on ${dlong(D.last_price_date)}. The day-1 price is that day's close. <b>HK$ per share</b> favours high-priced stocks. <b>HK$ on HK$1,000</b> shows what a HK$1,000 position bought on day 1 has made or lost, which ranks the same as %. <b>⚠ jump</b> marks a one-day move of 50% or more, which is often a split or spin-off in the raw prices rather than a real loss.`;
+  const fmt=r=>k==="pct"?fmtS(r.pct):k==="usd"?smoney(r.usd,2):smoney(r.pos,0);
+  const sub=r=>k==="pct"?`${smoney(r.usd,2)}/sh · ${smoney(r.pos)} on HK$1k`:k==="usd"?`${fmtS(r.pct)} · ${money(r.rp,2)} → ${money(r.lc,2)}`:`${fmtS(r.pct)} · ${smoney(r.usd,2)}/sh`;
+  const sorted=[...rows].sort((a,b)=>b[k]-a[k]);
+  // performance rank of every stock in this Picks / window (1 = best), shown when you search (2026-10-22, ported from KLSE tracker)
+  const prank=new Map(sorted.map((r,i)=>[r.t,i+1])), rankBy={pct:"% gain / loss",usd:"HK$ per share",pos:"HK$ on HK$1,000"}[k]||"% gain / loss";
+  const best=sorted.slice(0,10), worst=sorted.slice(-10).reverse();
+  const maxAbs=Math.max(1e-9,...best.concat(worst).map(r=>Math.abs(r[k])));
+  const li=(r,i,col)=>`<li><span class="no">${i+1}</span><span class="who"><span class="tk">${esc(r.t)}</span>${D.watch[r.t]?`<button type="button" class="addw" data-add="${esc(r.t)}" title="Add ${esc(r.t)} to section 2" aria-label="Add ${esc(r.t)} to section 2">＋ boxes</button>`:""}${window.Valuation?Valuation.button(r.t):""}${r.t20?'<span class="t20tag">TOP 20</span>':""}${r.jump?`<span class="jumptag" title="One-day move of 50%+ on ${dshort(r.jump)}: check for a split, reverse split or spin-off">⚠ jump ${dshort(r.jump)}</span>`:""}<small>day 1 ${dshort(r.d)} · ${esc(r.co||"")}</small></span><span class="val"><b class="${cls(r[k])}">${fmt(r)}</b><small>${sub(r)}</small></span><span class="barline"><span style="width:${Math.max(2,Math.round(100*Math.abs(r[k])/maxAbs))}%;background:var(${col})"></span></span></li>`;
+  $("best").innerHTML=best.length?best.map((r,i)=>li(r,i,"--green")).join(""):`<li class="muted">No picks in this window yet.</li>`;
+  $("worst").innerHTML=worst.length?worst.map((r,i)=>li(r,i,"--red")).join(""):"";
+  const up=rows.filter(r=>r.pct>0).length, tot=rows.reduce((a,r)=>a+r.pos,0);
+  $("boardTiles").innerHTML=[
+    tile("Stocks recommended",`${rows.length}`,`${srcName()} in ${winTxt()}`),
+    tile("Up since day 1",`${rows.length?Math.round(100*up/rows.length):0}%`,`${up} up · ${rows.length-up} down`),
+    tile("Avg change since day 1",`<span class="${cls(tot)}">${rows.length?fmtS(tot/rows.length/1000):"–"}</span>`,`median ${rows.length?fmtS(median(rows.map(r=>r.pct))):"–"}`),
+    tile("HK$1,000 in each on day 1",`<span class="${cls(tot)}">${smoney(tot)}</span>`,`${money(rows.length*1000)} deployed`),
+  ].join("");
+  // full table
+  const q=$("boardSearch").value.trim().toLowerCase();
+  const base=rows.filter(r=>!q||r.t.toLowerCase().includes(q)||(r.co||"").toLowerCase().includes(q));
+  let list=base.filter(r=>fPass("board",r));
+  const sk=S.sortKey, dir=S.sortDir;
+  list.sort((a,b)=>{const x=a[sk],y=b[sk];if(typeof x==="string")return dir*x.localeCompare(y);return dir*((x??-1e9)-(y??-1e9))});
+  let h=`<thead><tr>${BCOLS.map(([c,l])=>`<th class="sort" data-k="${c}" ${sk===c?`aria-sort="${dir<0?"descending":"ascending"}"`:""} tabindex="0">${c==="t"?'<span class="rn" style="display:inline-block">#</span> ':""}${l}${fBtn("board",c,l)}</th>`).join("")}</tr></thead><tbody>`;
+  for(const [i,r] of list.slice(0,boardShow).entries()){
+    h+=`<tr><td><div class="stk"><span class="rn">${i+1}</span><div><span class="tk">${esc(r.t)}</span>${q?`<span class="ranktag" title="Ranked ${prank.get(r.t)} of ${sorted.length} ${srcName()} in ${winTxt()} by ${rankBy} since day 1 (1 = best performer)">BEST #${prank.get(r.t)} of ${sorted.length}</span>`:""}${r.t20?'<span class="t20tag">TOP 20</span>':""}${window.Valuation?Valuation.button(r.t):""}${D.watch[r.t]?`<button type="button" class="addw" data-add="${esc(r.t)}" title="Add ${esc(r.t)} to section 2" aria-label="Add ${esc(r.t)} to section 2">＋ boxes</button>`:""}${r.jump?`<span class="jumptag" title="One-day move of 50%+ on ${dshort(r.jump)}: check for a split, reverse split or spin-off">⚠ jump ${dshort(r.jump)}</span>`:""}<span class="co">${esc(r.co||"")}</span></div></div></td><td>${dshort(r.d)}</td><td>${money(r.rp,2)}</td><td>${money(r.lc,2)}</td><td>${r.days}</td><td class="${cls(r.pct)}">${fmtS(r.pct)}</td><td class="${cls(r.usd)}">${smoney(r.usd,2)}</td><td class="${cls(r.pos)}">${smoney(r.pos)}</td><td class="${cls(r.hi)}">${fmtS(r.hi)}</td><td class="${cls(r.lo)}">${fmtS(r.lo)}</td><td>${r.n}</td><td>${r.sig?`<span class="sig ${r.sig}">${SIGN[r.sig]}</span>`:"–"}</td></tr>`;
+  }
+  $("boardTable").innerHTML=h+(list.length?"":`<tr><td colspan="12" class="muted" style="text-align:left">No stocks match these filters. Use Reset to default to clear them.</td></tr>`)+"</tbody>";
+  const nf=Object.keys(TBL.board.F).length;
+  $("boardChips").innerHTML=fChips("board");
+  $("boardReset").classList.toggle("pri",nf>0||!!q);
+  const all=boardShow>BOARD_TOP;
+  $("boardRows").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String((b.dataset.v==="all")===all)));
+  const ofTxt=list.length<base.length?` (filtered from ${base.length})`:"";
+  $("boardCount").textContent=(all||list.length<=BOARD_TOP?`${list.length} stock${list.length===1?"":"s"}`:`showing ${BOARD_TOP} of ${list.length} stocks`)+ofTxt;
+  const more=$("boardMore"); more.hidden=list.length<=BOARD_TOP;
+  more.textContent=all?`Show top ${BOARD_TOP} rows only`:`Show all ${list.length} stocks`;
+}
+function median(a){if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),n=s.length;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2}
+
+/* ---------- 2. entry watch ---------- */
+function ladder(info,last){
+  const lb=info.lb,mb=info.mb;
+  if(lb==null||mb==null) return `<td class="muted">–</td><td class="muted">–</td><td class="muted">–</td>`;
+  const half=lb+(mb-lb)/2, c=v=>last!=null&&last<=v?"pos":"";
+  return `<td class="${c(mb)}">${money(mb,2)}</td><td class="${c(half)}">${money(half,2)}</td><td class="${c(lb)}">${money(lb,2)}</td>`;
+}
+function weeklyAvg(w,i,mode){
+  const lo=Math.max(0,i-5); const vals=[];
+  for(let j=lo;j<i;j++){
+    if(mode==="se"){if(w.se[j]!=null)vals.push(w.se[j])}
+    else if(w.t20[j]==="1"&&w.c[j]!=null) vals.push(w.c[j]);
+  }
+  return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+}
+function watchTickers(){
+  const T=D.tickers; const top=S.watchSet==="top30"?topRowsAt(D.watch_dates.length-1):null;
+  let list=Object.keys(D.watch).filter(t=>top?top.has(t):S.watchSet==="top20"?T[t]?.t20:S.watchSet==="trigger"?!!T[t]?.trg:T[t]?.sig==="B");
+  for(const t of extra) if(D.watch[t]&&!list.includes(t)) list.unshift(t);
+  return list;
+}
+function renderWatch(){
+  const dates=D.watch_dates, n=dates.length, start=Math.max(0,n-S.look), L=n-start; let rows=[]; let withHits=0,totalHits=0,totalDays=0;
+  const refName=S.ref==="se"?"5-session average of the daily Suggested Entry":"average close on the days (within the prior 5 sessions) the stock was in the Top 20";
+  $("watchLede").innerHTML=`A green box means the stock <b>closed below</b> its weekly average price that day. Here the weekly average is the ${refName}, taken over the 5 sessions before each day so it was known in advance. A buy order at that price would have filled on every green day. <b>Bid now</b> is the weekly average to use for the next session. Tap a column heading to sort, tap again to reverse. <b>Bid near close</b> keeps only stocks whose Bid now is within 2, 3 or 5% of the close (or above it), so the order is likely to fill soon. <b>Mid BB / Ladder ½ / Support</b> are your two-entry ladder: Ladder ½ is Support plus half the distance up to the Mid BB, and a level turns green once the close is at or below it. A green <b>TRIGGER</b> tag means the buy-trigger rule fired in the last 5 sessions. <b>Setup</b> tags: <b>STRONG REBOUND</b> = one of the top 30 stocks in section 1, with 2–6 white days in a row right after 2+ green days (the one box rule that tested positive, roughly a 2-week idea); <b>NO DIP – DON'T CHASE</b> = above its weekly average without a real dip first (tested worse than average: wait for green days); <b>DISCOUNT</b> = more green boxes than white. <b>Streak now</b> shows the newest run over the full history, e.g. “3 white ← 4 green”. Pick <b>Top 30 strong stocks</b> above to see the stocks that can get a STRONG REBOUND tag.`;
+  const top30Now=topRowsAt(n-1);
+  for(const t of watchTickers()){
+    const w=D.watch[t], info=D.tickers[t]||{}; const cells=[]; let hits=0,valid=0; const hitDays=[];
+    for(let i=start;i<n;i++){
+      const avg=weeklyAvg(w,i,S.ref), c=w.c[i]; let st="na";
+      if(avg!=null&&c!=null){valid++; if(avg>c){st="hit";hits++;hitDays.push(dates[i])} else st="miss";}
+      const newWeek=i>start&&new Date(dates[i]+"T00:00:00").getDay()<new Date(dates[i-1]+"T00:00:00").getDay();
+      cells.push({d:dates[i],c,avg,st,newWeek,in20:w.t20[i]==="1"});
+    }
+    const bid=weeklyAvg(w,n,S.ref), last=w.c[n-1], gap=bid!=null&&last?bid/last-1:null;
+    // streaks over the full history (not just the look-back), newest box backwards
+    const sk=streakAt(boxStates(w,S.ref),n-1), {wRun,gRun,curG,wCut,gCut}=sk, rank30=top30Now.get(t)||0;
+    const setup=[]; if(isSR(sk,rank30>0))setup.push("SR"); if(valid&&hits/valid>0.5)setup.push("D"); if(isND(sk))setup.push("ND");
+    if(hits>0)withHits++; totalHits+=hits; totalDays+=valid;
+    rows.push({t,co:info.co,info,cells,hits,valid,hitDays,bid,last,gap,pinned:extra.has(t),setup,wRun,gRun,curG,wCut,gCut,setupN:(setup.includes("SR")?3:0)+(setup.includes("D")?1:0)-(setup.includes("ND")?1:0),rank30,rank:rank30||null,
+      ratio:valid?hits/valid:-1,ms:info.ms??null,mb:info.mb??null,lb:info.lb??null,half:info.lb!=null&&info.mb!=null?info.lb+(info.mb-info.lb)/2:null});
+  }
+  const wk=S.wSortKey||"ratio", wd=S.wSortDir||-1;
+  rows.sort((a,b)=>{
+    if(b.pinned!==a.pinned) return b.pinned-a.pinned;
+    if(wk==="t") return wd*a.t.localeCompare(b.t);
+    const x=a[wk],y=b[wk];
+    if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1;   // blanks always last
+    return wd*(x-y)||(b.hits-a.hits);
+  });
+  const near=rows.filter(r=>r.gap!=null&&r.gap>=-0.02).length;
+  const nb=S.near||0, allRows=rows.length;
+  if(nb) rows=rows.filter(r=>r.pinned||(r.gap!=null&&r.gap>=-nb/100));
+  const preF=rows.length; rows=rows.filter(r=>r.pinned||fPass("watch",r));
+  const nwf=Object.keys(TBL.watch.F).length;
+  $("watchChips").innerHTML=fChips("watch");
+  $("watchCount").textContent=`${rows.length} stock${rows.length===1?"":"s"}`+(rows.length<allRows?` (filtered from ${allRows})`:"");
+  $("watchReset").classList.toggle("pri",nwf>0||nb>0);
+  $("watchTiles").innerHTML=[
+    tile("Stocks with ≥1 green day",`${withHits}<span class="muted" style="font-size:14px"> / ${allRows}</span>`,`last ${L} sessions`),
+    tile("Green days, all stocks",`${totalDays?Math.round(totalHits/totalDays*100):0}%`,`${totalHits} of ${totalDays} stock-days`),
+    `<button type="button" class="tile tile-btn" id="nearTile" aria-pressed="${nb===2}" title="Show only these stocks"><div class="k">Bid within 2% of close</div><div class="v">${near}</div><div class="s">${nb===2?"Filter on: tap to show all":"Tap to show only these"}</div></button>`,
+  ].join("");
+  if(nb) $("watchTiles").insertAdjacentHTML("beforeend",`<p class="note" style="grid-column:1/-1;margin:0">Showing <b>${rows.length}</b> of ${allRows} stocks whose Bid now is within ${nb}% below the close or above it (already trading under its weekly average).</p>`);
+  const sh=(k,label,extra="",fk=k)=>`<th class="sort" data-wk="${k}" tabindex="0" ${wk===k?`aria-sort="${wd<0?"descending":"ascending"}"`:""} ${extra}>${k==="t"?'<span class="rn" style="display:inline-block">#</span> ':""}${label}${fBtn("watch",fk,label)}</th>`;
+  let h=`<thead><tr>${sh("t","Stock")}${sh("ratio","Green days","","hits")}${sh("setupN","Setup",'title="STRONG REBOUND = top-30 stock, 2–6 white after 2+ green. DISCOUNT = more green than white. NO DIP = above its weekly average without a real dip first."',"setup")}${sh("wRun","Streak now",'title="Newest run of boxes, and the run before it"',"wRun")}<th style="text-align:left">Last ${L} sessions <span class="muted">(${dshort(dates[start])} → ${dshort(dates[n-1])})</span></th>${sh("last","Close")}${sh("bid","Bid now")}${sh("gap","vs close")}${sh("mb","Mid BB",'title="Middle Bollinger Band"')}${sh("half","Ladder ½",'title="Support + (Mid BB - Support) / 2"')}${sh("lb","Support",'title="Support = lower Bollinger Band"')}${sh("ms","Score",'title="Matrix Score"')}<th style="text-align:left">Which days${fBtn("watch","hitDays","Which days")}</th></tr></thead><tbody>`;
+  for(const [ri,r] of rows.entries()){
+    const ratio=r.valid?r.hits/r.valid:0;
+    const pill=r.valid===0?`<span class="pill cold">no data</span>`:ratio>=.5?`<span class="pill hot">${r.hits}/${r.valid}</span>`:r.hits>0?`<span class="pill warm">${r.hits}/${r.valid}</span>`:`<span class="pill cold">0/${r.valid}</span>`;
+    const strip=r.cells.map(c=>`<i class="${c.st}${c.in20?" in20":""}${c.newWeek?" wk":""}" data-t="${esc(r.t)}" data-d="${c.d}" data-c="${c.c??""}" data-a="${c.avg??""}" data-in="${c.in20?1:0}"></i>`).join("");
+    const hd=r.hitDays, daysTxt=!hd.length?`<span class="muted">none</span>`:hd.length<=6?hd.map(dlong).join(", "):`<span title="${esc(hd.map(dlong).join(", "))}">${hd.slice(-6).map(dshort).join(", ")} <span class="muted">+${hd.length-6} earlier</span></span>`;
+    h+=`<tr><td><div class="stk"><span class="rn">${ri+1}</span><div><span class="tk">${esc(r.t)}</span>${r.info.t20?'<span class="t20tag">TOP 20</span>':""}${r.rank30?`<span class="t30tag" title="Row ${r.rank30} of the top 30 in section 1">TOP 30 #${r.rank30}</span>`:""}${r.pinned?' <button type="button" class="btn" data-unpin="'+esc(r.t)+'" style="padding:0 6px;font-size:11px" aria-label="Remove '+esc(r.t)+'">×</button>':""}${r.info.trg?`<span class="trgtag" title="Buy trigger fired on ${dlong(r.info.trg)}">TRIGGER ${dshort(r.info.trg)}</span>`:""}<span class="co">${esc(r.info.co||"")}</span></div></div></td><td>${pill}</td><td style="text-align:left">${r.setup.map(x=>x==="SR"?'<span class="setup sr" title="Top-30 stock, 2–6 white days right after 2+ green: tested ~2-week edge">STRONG REBOUND</span>':x==="D"?'<span class="setup disc">DISCOUNT</span>':'<span class="setup nd" title="Above its weekly average without a real dip first: tested worse than average">NO DIP – DON\'T CHASE</span>').join("<br>")||'<span class="muted">–</span>'}</td><td style="text-align:left" class="streak" ${r.wCut||r.gCut?'title="This run goes back to the start of the tracker data, so what came before it is unknown"':""}>${r.wRun==null?"–":r.wRun>0?`<b>${r.wRun}${r.wCut?"+":""}</b> white${r.gRun?` ← <span class="pos"><b>${r.gRun}${r.gCut?"+":""}</b> green</span>`:""}`:`<span class="pos"><b>${r.curG}</b> green</span> now`}</td><td style="text-align:left"><span class="strip${L>20?" dense":""}">${strip}</span></td><td>${r.last!=null?money(r.last,2):"–"}</td><td>${r.bid!=null?money(r.bid,2):"<span class='muted'>–</span>"}</td><td class="${r.gap==null?"muted":r.gap>=0?"pos":"neg"}">${r.gap==null?"–":fmtS(r.gap)}</td>${ladder(r.info,r.last)}<td>${r.info.ms??"–"}</td><td class="days-list">${daysTxt}</td></tr>`;
+  }
+  $("watchTable").innerHTML=h+(rows.length?"":`<tr><td colspan="13" class="muted" style="text-align:left">${preF?"No stocks match these filters. Use Reset to default to clear them.":"No stocks in this list today."}</td></tr>`)+"</tbody>";
+}
+
+/* ---------- 3 & 4 stats ---------- */
+function stats(evs){
+  const H=D.settings.horizon_weeks,out=[];
+  for(let w=0;w<H;w++){
+    const rs=[];
+    for(const e of evs){const p=(S.measure==="peak"?e.fp:e.fc)[w]; if(p!=null&&e.rp>0) rs.push({r:p/e.rp-1,usd1k:1000*(p/e.rp-1),ps:p-e.rp});}
+    const n=rs.length;
+    const tiers=TIERS.map(t=>{const m=rs.filter(x=>t.k===0?x.r>0:x.r>=t.k);return{n:m.length,rate:n?m.length/n:null,usd1k:m.reduce((a,x)=>a+x.usd1k,0),avg1k:m.length?m.reduce((a,x)=>a+x.usd1k,0)/m.length:null,avgPs:m.length?m.reduce((a,x)=>a+x.ps,0)/m.length:null}});
+    out.push({w:w+1,n,tiers,total1k:rs.reduce((a,x)=>a+x.usd1k,0),avg1k:n?rs.reduce((a,x)=>a+x.usd1k,0)/n:null,med1k:median(rs.map(x=>x.usd1k)),
+      avgPs:n?rs.reduce((a,x)=>a+x.ps,0)/n:null,win1k:rs.filter(x=>x.usd1k>0).reduce((a,x)=>a+x.usd1k,0),loss1k:rs.filter(x=>x.usd1k<0).reduce((a,x)=>a+x.usd1k,0),
+      best:n?Math.max(...rs.map(x=>x.usd1k)):null,worst:n?Math.min(...rs.map(x=>x.usd1k)):null});
+  }
+  return out;
+}
+const base=()=>D.baseline[S.measure];
+function renderHits(st,evs){
+  const mtxt=S.measure==="peak"?"its best close at any point up to the end of that week":"its close at the end of that week (every 5 trading sessions)";
+  $("hitLede").innerHTML=`A <b>pick</b> is each time a stock ${srcNew()} (a return after ${D.settings.reentry_gap}+ sessions away counts again). The recommendation price is that day's close. A pick is a hit when ${mtxt} is above the recommendation price, or at least 5/10/15/20% above it. Covers <b>${evs.length}</b> ${srcName()} from ${winTxt()}, so the totals are cumulative.`;
+  const s=st[S.week-1], b=base()[S.week-1];
+  if(S.src==="trigger"){
+    const w4=st[3],b4=base()[3],ok=w4.n>=20&&w4.tiers[0].rate>b4.rates[0]&&w4.avg1k>b4.avg1k;
+    $("hitLede").innerHTML+=` <br><b>Buy-trigger rule, on trial until ${dlong(D.trigger_review||"2027-01-05")}.</b> It fires when a stock that had a green day in the last 7 sessions closes above its own 5-day average close, is still below its Mid BB, is on BUY, and has at least 2× more room up to the upper BB than down to its 7-day low. Keep it only if, by the review date, its week-4 hit rate <i>and</i> average HK$ per pick beat the Market row. Today at week 4: <span class="${w4.n<20?"muted":ok?"pos":"neg"}">${w4.n<20?`too few picks yet (n=${w4.n})`:ok?"ahead of the market":"not ahead of the market"}</span>.`;
+  }
+  $("hitTiles").innerHTML=`<div class="tile"><div class="k">Horizon</div><div class="v">Week ${S.week}</div><div class="s">${s.n} picks matured</div></div>`+TIERS.map((t,i)=>{const diff=s.n&&b.n?s.tiers[i].rate-b.rates[i]:null;return tile(t.label,s.n?fmtP(s.tiers[i].rate):"–",s.n?`${s.tiers[i].n} of ${s.n} · market ${fmtP(b.rates[i])} <span class="${cls(diff)}">(${diff==null?"–":(diff>=0?"+":"−")+Math.abs(diff*100).toFixed(1)+" pts"})</span>`:"not enough history yet",t.tok)}).join("");
+  $("hitLegend").innerHTML=TIERS.map(t=>`<span><i class="sw" style="background:var(${t.tok})"></i>${t.label}</span>`).join("")+`<span><i class="sw" style="height:2px;background:var(--ink-dim)"></i>Market, above rec price</span>`;
+  let h=`<thead><tr><th>Week</th><th>n</th>${TIERS.map(t=>`<th>${t.short}</th>`).join("")}</tr></thead><tbody>`;
+  for(const r of st){const bb=base()[r.w-1];
+    h+=`<tr class="clickable${r.w===S.week?" sel":""}" data-w="${r.w}"><td>Wk ${r.w}</td><td class="${r.n?"":"muted"}">${r.n}</td>${r.tiers.map(t=>`<td class="${r.n?"":"muted"}">${r.n?fmtP(t.rate):"–"}</td>`).join("")}</tr>`;
+    if(r.w===S.week) h+=`<tr class="base"><td>Market</td><td>${bb.n.toLocaleString()}</td>${bb.rates.map(v=>`<td>${fmtP(v)}</td>`).join("")}</tr>`;}
+  $("hitTable").innerHTML=h+"</tbody>";
+  const ds=TIERS.map((t,i)=>({label:t.label,data:st.map(r=>r.n?+(r.tiers[i].rate*100).toFixed(1):null),borderColor:css(t.tok),backgroundColor:css(t.tok),borderWidth:2,pointRadius:3,pointHoverRadius:5,tension:.25}));
+  ds.push({label:"Market, above rec price",data:base().map(x=>x.n?+(x.rates[0]*100).toFixed(1):null),borderColor:css("--ink-dim"),backgroundColor:css("--ink-dim"),borderDash:[5,4],borderWidth:1.5,pointRadius:0,tension:.25});
+  const mx=Math.max(10,...ds.flatMap(d=>d.data.filter(v=>v!=null)));
+  hitChart=drawChart(hitChart,"hitChart",{type:"line",data:{labels:st.map(r=>"Wk "+r.w),datasets:ds},options:baseOpts(v=>v+"%",ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}%`,{min:0,max:Math.min(100,Math.ceil((mx+5)/10)*10)})});
+}
+function renderUsd(st,evs){
+  const s=st[S.week-1], b=base()[S.week-1];
+  $("usdLede").innerHTML=`The same picks in dollars: the gain if you had put <b>HK$1,000 into every pick</b> at its recommendation price, plus the average gain <b>per share</b>. Totals are cumulative over the pick window.`;
+  $("usdTiles").innerHTML=[
+    tile(`Total P/L · wk ${S.week}`,`<span class="${cls(s.total1k)}">${smoney(s.total1k)}</span>`,s.n?`HK$1,000 × ${s.n} picks = ${money(s.n*1000)} deployed`:"not enough history yet"),
+    tile("Avg per pick",`<span class="${cls(s.avg1k)}">${smoney(s.avg1k,2)}</span>`,`per HK$1,000 · market ${smoney(b.avg1k,2)}`),
+    tile("Avg per share",`<span class="${cls(s.avgPs)}">${smoney(s.avgPs,2)}</span>`,"close minus recommendation price"),
+    tile("Winners vs losers",`<span class="pos">${smoney(s.win1k)}</span>`,`losers <span class="neg">${smoney(s.loss1k)}</span>`),
+  ].join("");
+  let h=`<thead><tr><th>Week</th><th>n</th><th>Total P/L</th><th>Avg/pick</th><th>Market avg</th><th>Avg/share</th><th>Best</th><th>Worst</th></tr></thead><tbody>`;
+  for(const r of st){const m=r.n?"":"muted",bb=base()[r.w-1];h+=`<tr class="clickable${r.w===S.week?" sel":""}" data-w="${r.w}"><td>Wk ${r.w}</td><td class="${m}">${r.n}</td><td class="${r.n?cls(r.total1k):m}">${r.n?smoney(r.total1k):"–"}</td><td class="${cls(r.avg1k)}">${smoney(r.avg1k,2)}</td><td class="${cls(bb.avg1k)}">${smoney(bb.avg1k,2)}</td><td class="${cls(r.avgPs)}">${smoney(r.avgPs,2)}</td><td class="${cls(r.best)}">${smoney(r.best)}</td><td class="${cls(r.worst)}">${smoney(r.worst)}</td></tr>`;}
+  $("usdTable").innerHTML=h+"</tbody>";
+  $("usdTierWeek").textContent="week "+S.week+(s.n?` (${s.n} picks)`:"");
+  const maxAbs=Math.max(1,...s.tiers.map(t=>Math.abs(t.usd1k)));
+  let t=`<thead><tr><th>Tier</th><th>Picks</th><th>Hit rate</th><th>Total HK$ (per HK$1k each)</th><th>Avg HK$ per pick</th><th>Avg HK$ per share</th></tr></thead><tbody>`;
+  TIERS.forEach((tr,i)=>{const x=s.tiers[i];t+=`<tr><td><span style="display:inline-flex;align-items:center;gap:6px"><i class="sw" style="background:var(${tr.tok})"></i>${tr.label}</span></td><td>${x.n}</td><td>${s.n?fmtP(x.rate):"–"}</td><td><span class="bar-cell"><span class="mini" style="width:${Math.round(60*Math.abs(x.usd1k)/maxAbs)}px;background:var(${tr.tok})"></span><span class="${cls(x.usd1k)}">${s.n?smoney(x.usd1k):"–"}</span></span></td><td class="${cls(x.avg1k)}">${smoney(x.avg1k,2)}</td><td class="${cls(x.avgPs)}">${smoney(x.avgPs,2)}</td></tr>`;});
+  t+=`<tr><td class="muted">All picks</td><td>${s.n}</td><td class="muted">–</td><td class="${cls(s.total1k)}">${s.n?smoney(s.total1k):"–"}</td><td class="${cls(s.avg1k)}">${smoney(s.avg1k,2)}</td><td class="${cls(s.avgPs)}">${smoney(s.avgPs,2)}</td></tr>`;
+  $("usdTier").innerHTML=t+"</tbody>";
+  const g=css("--green"),r=css("--red");
+  usdChart=drawChart(usdChart,"usdChart",{type:"bar",data:{labels:st.map(x=>"Wk "+x.w),datasets:[
+    {type:"line",label:"Market avg",data:base().map(x=>x.n?+x.avg1k.toFixed(2):null),borderColor:css("--ink-dim"),borderDash:[5,4],borderWidth:1.5,pointRadius:0,order:0},
+    {label:"Avg HK$ per HK$1,000",data:st.map(x=>x.n?+x.avg1k.toFixed(2):null),backgroundColor:st.map(x=>x.avg1k>=0?g:r),borderRadius:4,barPercentage:.6,categoryPercentage:.9,order:1}]},
+    options:baseOpts(v=>"HK$"+v,ctx=>{const x=st[ctx.dataIndex];if(ctx.dataset.type==="line")return `Market avg: ${smoney(ctx.parsed.y,2)}`;return[`Avg per pick: ${smoney(x.avg1k,2)}`,`Total: ${smoney(x.total1k)} (n=${x.n})`,`Avg per share: ${smoney(x.avgPs,2)}`]})});
+}
+function baseOpts(tickFmt,tipFmt,yr){
+  const ink=css("--ink-dim"),line=css("--line");
+  return {responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:tipFmt},backgroundColor:css("--panel"),titleColor:css("--ink"),bodyColor:css("--ink"),borderColor:line,borderWidth:1,titleFont:{family:"IBM Plex Mono"},bodyFont:{family:"IBM Plex Mono"}}},
+    scales:{x:{grid:{display:false},ticks:{color:ink,font:{family:"IBM Plex Mono",size:10}},border:{color:line}},
+      y:Object.assign({grid:{color:line},ticks:{color:ink,font:{family:"IBM Plex Mono",size:10},callback:tickFmt},border:{display:false}},yr||{})}};
+}
+function drawChart(old,id,cfg){if(old)old.destroy();if(!window.Chart)return null;return new Chart($(id),cfg)}
+
+/* ---------- planner ---------- */
+const P={side:"buy",n:2,mkt:"auto"};
+function planSeg(id,key,num){const el=$(id);el.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;P[key]=num?+b.dataset.v:b.dataset.v;
+  el.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+  $("planMktWrap").hidden=$("planStopWrap").hidden=P.side!=="buy";$("planEntryWrap").hidden=P.side!=="sell";
+  if($("planOut").innerHTML)runPlan();});}
+function runPlan(){
+  const t=$("planTk").value.trim().toUpperCase(), out=$("planOut"), info=D.tickers[t];
+  if(!t){out.innerHTML=`<p class="note">Type a ticker first.</p>`;return}
+  if(!info){out.innerHTML=`<p class="note">${esc(t)} isn't in the screener's universe. Check the spelling, or pick one from the list.</p>`;return}
+  const px=info.px,lb=info.lb,mb=info.mb,ub=info.ub,tgt=info.tgt,n=P.n,budget=Math.max(0,+$("planBudget").value||0);
+  if([px,lb,mb,ub].some(v=>v==null)){out.innerHTML=`<p class="note">${esc(t)} has no Bollinger Band data yet, so levels can't be calculated.</p>`;return}
+  const head=`<div class="tiles" style="margin:12px 0 0">${tile(`${esc(t)} close`,money(px,2),`${esc(info.co||"")}${info.sig?` · ${SIGN[info.sig]}`:""}${info.ms!=null?` · score ${info.ms}`:""}`)}${tile("Support (lower BB)",money(lb,2),fmtS(lb/px-1)+" from close")}${tile("Mid BB",money(mb,2),fmtS(mb/px-1)+" from close")}${tile("Resistance (upper BB)",money(ub,2),fmtS(ub/px-1)+" from close")}${tile("Analyst target",tgt?money(tgt,2):"–",tgt?fmtS(tgt/px-1)+" from close":"no analyst target")}</div>`;
+  let levels=[],note="",sum="";
+  if(P.side==="buy"){
+    const r=mb-lb, hasE=info.e20!=null&&info.e40!=null, autoDown=hasE?info.e20<info.e40:px<mb, mkt=P.mkt==="auto"?(autoDown?"down":"up"):P.mkt;
+    for(let i=0;i<n;i++) levels.push(mkt==="down"?lb+r*(n-1-i)/n:mb-r*i/n);
+    const per=budget/n, rows=levels.map((v,i)=>{const sh=per>0?Math.floor(per/v):0;return{i,v,sh,cost:sh*v}});
+    const tsh=rows.reduce((a,x)=>a+x.sh,0),tc=rows.reduce((a,x)=>a+x.cost,0),avg=tsh?tc/tsh:levels.reduce((a,v)=>a+v,0)/n;
+    const stop=lb*(1-(+$("planStop").value||0)/100), rr=(ub-avg)/Math.max(avg-stop,1e-9);
+    note=`Market: <b>${mkt==="down"?"Down":"Up / flat"}</b>${P.mkt==="auto"?(hasE?` (auto: EMA20 ${money(info.e20,2)} is ${autoDown?"below":"above"} EMA40 ${money(info.e40,2)}, the same test as the dashboard's trend badge)`:` (auto: close is ${px<mb?"below":"above"} the Mid BB)`):""}. ${mkt==="down"?`Levels step from the Mid BB down to Support; the first entry is ${n===2?"halfway":"two-thirds of the way"} up from Support.`:"Levels step down from the Mid BB towards Support."}`;
+    out.innerHTML=head+`<div class="panel"><p class="note" style="margin-top:0">${note}</p><div class="scroll"><table><thead><tr><th>Entry</th><th>Buy limit</th><th>vs close</th><th>Shares</th><th>Cost</th><th>Status</th></tr></thead><tbody>${rows.map(x=>`<tr><td>Entry ${x.i+1}</td><td>${money(x.v,2)}</td><td class="${cls(x.v/px-1)}">${fmtS(x.v/px-1)}</td><td>${budget?x.sh:"–"}</td><td>${budget?money(x.cost,0):"–"}</td><td>${px<=x.v?'<span class="pill hot">would fill now</span>':'<span class="pill cold">waiting</span>'}</td></tr>`).join("")}</tbody></table></div>
+      <div class="plan-sum"><span>Average entry if all fill: <b>${money(avg,2)}</b></span>${budget?`<span>Total: <b>${tsh} shares · ${money(tc,0)}</b></span>`:""}<span>Stop: <b>${money(stop,2)}</b> (${fmtS(stop/avg-1)} from average)</span><span>First take-profit (upper BB): <b>${money(ub,2)}</b> (${fmtS(ub/avg-1)})</span><span>Reward / risk: <b class="${rr>=2?"pos":"neg"}">${rr.toFixed(1)}×</b> ${rr>=2?"passes the 2× check":"below 2×, so think twice"}</span></div></div>`;
+  } else {
+    const hi=tgt&&tgt>ub?tgt:ub*1.10, r=hi-ub, entry=+$("planEntry").value||0;
+    for(let i=0;i<n;i++) levels.push(ub+r*i/n);
+    const rows=levels.map((v,i)=>({i,v}));
+    note=`Levels step up from Resistance (upper BB) towards ${tgt&&tgt>ub?"the analyst target":"Resistance + 10% (no analyst target above Resistance)"}. Sell an equal part at each level, then trail a stop under the last high for anything left. Tracker data so far shows gains often fade after +5% to +10%, so consider selling more at Exit 1.`;
+    out.innerHTML=head+`<div class="panel"><p class="note" style="margin-top:0">${note}</p><div class="scroll"><table><thead><tr><th>Exit</th><th>Sell limit</th><th>vs close</th>${entry?"<th>Gain vs your entry</th>":""}<th>Status</th></tr></thead><tbody>${rows.map(x=>`<tr><td>Exit ${x.i+1} (${Math.round(100/n)}%)</td><td>${money(x.v,2)}</td><td class="${cls(x.v/px-1)}">${fmtS(x.v/px-1)}</td>${entry?`<td class="${cls(x.v/entry-1)}">${fmtS(x.v/entry-1)}</td>`:""}<td>${px>=x.v?'<span class="pill hot">would fill now</span>':'<span class="pill cold">waiting</span>'}</td></tr>`).join("")}</tbody></table></div>
+      <div class="plan-sum">${entry?`<span>Your entry: <b>${money(entry,2)}</b> · now <b class="${cls(px/entry-1)}">${fmtS(px/entry-1)}</b></span>`:""}<span>Protective stop: <b>${money(lb*(1-(+$("planStop").value||3)/100),2)}</b> (just under Support)</span>${entry&&px/entry-1>=0.05?`<span class="pos"><b>Already +5% or more: the tracker data favours taking at least part of the profit now.</b></span>`:""}</div></div>`;
+  }
+}
+
+/* ---------- rule scorecard: replay every past session as if the tags were shown that day ---------- */
+let ruleCache=null;
+function ruleStats(){
+  if(ruleCache&&ruleCache.ref===S.ref) return ruleCache;
+  const dates=D.watch_dates, n=dates.length, H=RULE_HORIZON;
+  const states={}; for(const t in D.watch) states[t]=boxStates(D.watch[t],S.ref);
+  const mk=()=>({n:0,up:0,sum:0,days:new Set(),stocks:new Set()});
+  const G={}; for(const per of ["live","hist"]) for(const g of ["SR","T30","ND","OTH"]) G[per+g]=mk();
+  let lastScored=null;
+  for(let i=0;i+H<n;i++){
+    const per=dates[i]>=RULES_LIVE_FROM?"live":"hist", top=topRowsAt(i); lastScored=dates[i];
+    for(const t in D.watch){
+      const c=D.watch[t].c, c0=c[i], c1=c[i+H]; if(c0==null||c1==null||!(c0>0)) continue;
+      const st=states[t]; if(st[i]==null) continue;
+      const k=streakAt(st,i), r=c1/c0-1;
+      const add=g=>{const x=G[per+g];x.n++;x.sum+=r;if(r>0)x.up++;x.days.add(dates[i]);x.stocks.add(t)};
+      if(top.has(t)) add(isSR(k,true)?"SR":"T30");
+      add(isND(k)?"ND":"OTH");
+    }
+  }
+  ruleCache={ref:S.ref,G,lastScored,firstLiveDue:(()=>{const i=dates.findIndex(d=>d>=RULES_LIVE_FROM);return i<0?null:i})()};
+  return ruleCache;
+}
+function renderRules(){
+  const {G,lastScored}=ruleStats(), H=RULE_HORIZON;
+  const fmtG=x=>x.n?`${x.n.toLocaleString()} <span class="muted">(${x.stocks.size} stocks, ${x.days.size} days)</span>`:'<span class="muted">none yet</span>';
+  const up=x=>x.n?`${Math.round(100*x.up/x.n)}%`:"–", avg=x=>x.n?`<span class="${cls(x.sum)}">${fmtS(x.sum/x.n)}</span>`:"–";
+  const diff=(a,b,good)=>{if(!a.n||!b.n)return"–";const d=a.sum/a.n-b.sum/b.n;return `<b class="${(good?d>0:d<0)?"pos":"neg"}">${fmtS(d)}</b>`};   // green = supports the rule
+  const verdict=(a,b,good)=>{if(a.n<30||b.n<30)return'<span class="muted">too few cases yet</span>';const d=a.sum/a.n-b.sum/b.n;return (good?d>0:d<0)?'<span class="pos">rule holding</span>':'<span class="neg">not holding</span>'};
+  const row=(label,sub,a,b,good)=>`<tr><td class="lbl"><b>${label}</b><span class="sub">${sub}</span></td><td>${fmtG(a)}</td><td>${up(a)}</td><td>${avg(a)}</td><td>${up(b)}</td><td>${avg(b)}</td><td>${diff(a,b,good)}</td><td style="text-align:left">${verdict(a,b,good)}</td></tr>`;
+  const head=`<thead><tr><th>Tag</th><th>Tagged stock-days</th><th>% up after ${H}</th><th>Avg after ${H}</th><th>Comparison % up</th><th>Comparison avg</th><th>Difference</th><th>Verdict</th></tr></thead>`;
+  const block=(per,title)=>`<tr><td colspan="8" style="text-align:left;padding-top:14px"><b>${title}</b></td></tr>`
+    +row("STRONG REBOUND","vs the same top-30 stocks on their other days",G[per+"SR"],G[per+"T30"],true)
+    +row("NO DIP – DON'T CHASE","vs all other stock-days (lower is what we expect)",G[per+"ND"],G[per+"OTH"],false);
+  const live=G.liveSR.n+G.liveND.n;
+  $("ruleLede").innerHTML=`Each past session is replayed as if the tags had been on the dashboard that day, then scored on the close <b>${H} sessions (about 2 weeks) later</b>, using the same weekly average as the boxes above. <b>Live</b> counts only sessions from ${dlong(RULES_LIVE_FROM)}, when the rules were set, so it is a true forward test; <b>history</b> is the tracker's earlier data, shown for reference. A session can only be scored once ${H} more sessions have closed${live?`; the latest scored session is ${dlong(lastScored)}`:`, so the first live results appear about 2 weeks after ${dlong(RULES_LIVE_FROM)}`}. Treat “rule holding” as meaningful only after a few hundred tagged stock-days.`;
+  $("ruleTable").innerHTML=head+"<tbody>"+block("live",`Live, since ${dshort(RULES_LIVE_FROM)}`)+block("hist",`History, ${dshort(D.watch_dates[0])} – before ${dshort(RULES_LIVE_FROM)} (reference only)`)+"</tbody>";
+}
+function render(){
+  if(!D)return;
+  renderBoard(); renderWatch(); renderRules();
+  const evs=windowEvents(), st=stats(evs);
+  renderHits(st,evs); renderUsd(st,evs);
+}
+function boot(data){
+  D=data;
+  // Valuation buttons (valuation.js, 2026-10-15): re-render once its data arrives
+  if(window.Valuation) Valuation.load().then(ok=>{if(ok)render()});
+  if(!D.version||D.version<2){$("boardLede").textContent="This page needs pick_tracker_data.json from the newer generate_pick_tracker.py. Run it once and publish again.";return;}
+  const nTop=D.events.filter(e=>e.src==="top20").length;
+  $("meta").innerHTML=`<span>Session <b>${dlong(D.as_of_session)}</b> close</span><span>History from <b>${dshort(D.first_logged_session)}</b> · ${D.logged_sessions} sessions</span><span><b>${nTop}</b> Top-20 picks · <b>${D.events.length-nTop}</b> BUY signals · ${Object.keys(D.tickers).length} tickers</span>`;
+  $("foot").innerHTML=`Built by generate_pick_tracker.py from top20_daily_log.json and history/*.json. Sessions are dated to the last completed US close. Weeks are 5 trading sessions after the recommendation day; week 13 needs a pick to be about 3 months old. Market comparison: ${esc(D.baseline_note)}. Generated ${esc(D.generated_at)} (Malaysia time). Not investment advice.`;
+  planSeg("planSide","side");planSeg("planN","n",true);planSeg("planMkt","mkt");
+  $("planForm").addEventListener("submit",e=>{e.preventDefault();runPlan()});
+  $("tickerList").innerHTML=Object.keys(D.watch).sort().map(t=>`<option value="${esc(t)}">${esc(D.tickers[t]?.co||"")}</option>`).join("");
+  bindSeg("src","src",false,()=>{boardShow=BOARD_TOP}); bindSeg("win","win",true); bindSeg("refMode","ref"); bindSeg("measure","measure");
+  bindSeg("rankBy","rankBy",false,()=>{S.sortKey=S.rankBy;S.sortDir=-1}); bindSeg("lookback","look",true); bindSeg("nearBid","near",true);
+  $("watchTiles").addEventListener("click",e=>{if(!e.target.closest("#nearTile"))return;S.near=S.near===2?0:2;save();
+    $("nearBid").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.v===S.near)));renderWatch()}); bindSeg("watchSet","watchSet",false,()=>{ if(S.watchSet==="top30"){S.wSortKey="rank";S.wSortDir=1} else if(S.wSortKey==="rank"){S.wSortKey="ratio";S.wSortDir=-1} });  /* top 30: same order as section 1 */
+  $("boardSearch").addEventListener("input",()=>renderBoard());
+  $("boardMore").addEventListener("click",()=>{const wasAll=boardShow>BOARD_TOP;boardShow=wasAll?BOARD_TOP:1e9;renderBoard();if(wasAll)$("boardTable").scrollIntoView({block:"nearest"})});
+  $("boardRows").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;boardShow=b.dataset.v==="all"?1e9:BOARD_TOP;renderBoard()});
+  const sortBy=th=>{const k=th.dataset.k;if(S.sortKey===k)S.sortDir*=-1;else{S.sortKey=k;S.sortDir=(k==="t"||k==="d")?1:-1}save();renderBoard()};
+  $("boardTable").addEventListener("click",e=>{const fb=e.target.closest(".fbtn");if(fb){e.stopPropagation();openFilter(fb);return}const th=e.target.closest("th.sort");if(th)sortBy(th)});
+  $("boardTable").addEventListener("keydown",e=>{if(e.target.closest(".fbtn"))return;const th=e.target.closest("th.sort");if(th&&(e.key==="Enter"||e.key===" ")){e.preventDefault();sortBy(th)}});
+  /* Excel-style filter popup */
+  const pop=document.createElement("div");pop.className="fpop";pop.hidden=true;pop.setAttribute("role","dialog");document.body.appendChild(pop);
+  let popKey=null,popBtn=null,popTbl=null;
+  const closePop=()=>{pop.hidden=true;popKey=null;popBtn=null;popTbl=null};
+  const rerender=id=>id==="watch"?renderWatch():renderBoard();
+  const placePop=()=>{if(!popBtn)return;const rc=popBtn.getBoundingClientRect(),w=pop.offsetWidth,hgt=pop.offsetHeight;
+    if(rc.bottom<0||rc.top>innerHeight||rc.right<0||rc.left>innerWidth){closePop();return}
+    pop.style.left=Math.max(12,Math.min(rc.right-w,innerWidth-w-12))+"px";
+    pop.style.top=(rc.bottom+6+hgt>innerHeight?Math.max(12,rc.top-hgt-6):rc.bottom+6)+"px"};
+  function openFilter(btn){
+    const k=btn.dataset.f,id=btn.dataset.tbl;if(popKey===k&&popTbl===id&&!pop.hidden){closePop();return}
+    popKey=k;popTbl=id;const [,label,ty]=TBL[id].cols.find(c=>c[0]===k),f=TBL[id].F[k]||{};let body="";
+    if(ty==="text")body=`<div class="row"><input type="text" id="fq" placeholder="Ticker or company contains…" value="${esc(f.q||"")}"></div>`;
+    else if(ty==="date"||ty==="days"){const ds=ty==="days"?[...D.watch_dates]:boardRows().map(r=>r.d).sort();body=(ty==="days"?'<p class="muted" style="font-size:11px;margin:0 0 8px">Keep stocks with at least one green day in this date range.</p>':"")+`<div class="row"><span class="unit" style="width:38px">From</span><input type="date" id="ffrom" value="${f.from||""}" min="${ds[0]||""}" max="${ds[ds.length-1]||""}"></div><div class="row"><span class="unit" style="width:38px">To</span><input type="date" id="fto" value="${f.to||""}" min="${ds[0]||""}" max="${ds[ds.length-1]||""}"></div>`}
+    else if(ty==="setup"){const all=Object.keys(SETUPS),sel=f.sel||all;body=`<div class="chk">${all.map(v=>`<label><input type="checkbox" value="${v}" ${sel.includes(v)?"checked":""}> ${SETUPS[v]}</label>`).join("")}</div>`}
+    else if(ty==="list"){const sel=f.sel||["B","W","S","-"];body=`<div class="chk">${[["B","BUY"],["W","WATCH"],["S","SELL"],["-","No signal"]].map(([v,l])=>`<label><input type="checkbox" value="${v}" ${sel.includes(v)?"checked":""}> ${l}</label>`).join("")}</div>`}
+    else{const u=ty==="pct"?"%":ty==="money"?"HK$":"",op=f.op||"ge";
+      body=`<div class="row"><select id="fop">${Object.entries(OPS).map(([o,l])=>`<option value="${o}" ${o===op?"selected":""}>${l==="between"?"between":"is "+l}</option>`).join("")}</select></div>
+      <div class="row"><input type="number" step="any" id="fa" value="${f.a??""}" placeholder="value"><span class="unit">${u}</span></div>
+      <div class="row" id="fbrow" ${op==="bt"?"":"hidden"}><span class="unit">and</span><input type="number" step="any" id="fb" value="${f.b??""}" placeholder="value"><span class="unit">${u}</span></div>
+      ${ty==="pct"?'<p class="muted" style="font-size:11px;margin:0 0 6px">Type percent numbers, e.g. 10 for +10%, -5 for −5%.</p>':""}`}
+    pop.innerHTML=`<h4>Filter: ${esc(label)}</h4>${body}<div class="acts"><button type="button" class="btn" data-act="clear">Clear</button><button type="button" class="btn pri" data-act="apply">Apply</button></div>`;
+    pop.hidden=false;popBtn=btn;placePop();
+    const sel=pop.querySelector("#fop");if(sel)sel.addEventListener("change",()=>{pop.querySelector("#fbrow").hidden=sel.value!=="bt"});
+    (pop.querySelector("input:not([type=checkbox]),select")||pop.querySelector("button")).focus({preventScroll:true});
+  }
+  function applyPop(){
+    const k=popKey,id=popTbl,ty=TBL[id].cols.find(c=>c[0]===k)[2];let f=null;
+    if(ty==="text"){const q=pop.querySelector("#fq").value.trim();if(q)f={q}}
+    else if(ty==="date"||ty==="days"){const a=pop.querySelector("#ffrom").value,b=pop.querySelector("#fto").value;if(a||b)f={from:a,to:b}}
+    else if(ty==="list"){const sel=[...pop.querySelectorAll("input:checked")].map(i=>i.value);if(sel.length<4)f={sel}}
+    else if(ty==="setup"){const sel=[...pop.querySelectorAll("input:checked")].map(i=>i.value);if(sel.length<Object.keys(SETUPS).length)f={sel}}
+    else{const op=pop.querySelector("#fop").value,a=pop.querySelector("#fa").value,b=pop.querySelector("#fb").value;if(a!==""&&(op!=="bt"||b!==""))f={op,a:+a,b:b===""?null:+b}}
+    if(f)TBL[id].F[k]=f;else delete TBL[id].F[k];saveF(id);closePop();rerender(id);
+  }
+  pop.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;if(b.dataset.act==="clear"){const id=popTbl;delete TBL[id].F[popKey];saveF(id);closePop();rerender(id)}else applyPop()});
+  pop.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName!=="BUTTON"){e.preventDefault();applyPop()}if(e.key==="Escape")closePop()});
+  document.addEventListener("mousedown",e=>{if(!pop.hidden&&!pop.contains(e.target)&&!e.target.closest(".fbtn"))closePop()});
+  document.addEventListener("scroll",e=>{if(!pop.hidden&&!pop.contains(e.target))placePop()},{passive:true,capture:true});
+  addEventListener("resize",closePop);
+  const chipClr=e=>{const b=e.target.closest("[data-clr]");if(!b)return;const id=b.dataset.tbl;delete TBL[id].F[b.dataset.clr];saveF(id);rerender(id)};
+  $("boardChips").addEventListener("click",chipClr);$("watchChips").addEventListener("click",chipClr);
+  $("watchReset").addEventListener("click",()=>{TBL.watch.F={};saveF("watch");closePop();S.near=0;S.wSortKey="ratio";S.wSortDir=-1;save();
+    $("nearBid").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v==="0")));renderWatch()});
+  $("boardReset").addEventListener("click",()=>{TBL.board.F={};saveF("board");closePop();$("boardSearch").value="";boardShow=BOARD_TOP;S.sortKey=S.rankBy;S.sortDir=-1;save();renderBoard()});
+  const addTk=()=>{const v=$("watchSearch").value.trim().toUpperCase();if(D.watch[v]){extra.add(v);$("watchSearch").value="";renderWatch()}};
+  $("watchSearch").addEventListener("change",addTk); $("watchSearch").addEventListener("keydown",e=>{if(e.key==="Enter")addTk()});
+  document.addEventListener("click",e=>{const b=e.target.closest("[data-add]");if(!b)return;e.stopPropagation();const t=b.dataset.add;extra.add(t);renderWatch();
+    const row=[...$("watchTable").querySelectorAll("tbody tr")].find(tr=>tr.querySelector(".tk")?.textContent===t);
+    $("watch").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"});
+    if(row){row.classList.add("flash");setTimeout(()=>row.classList.remove("flash"),1700)}},true);
+  const wSort=th=>{const k=th.dataset.wk;if((S.wSortKey||"ratio")===k)S.wSortDir=-(S.wSortDir||-1);else{S.wSortKey=k;S.wSortDir=k==="t"?1:-1}save();renderWatch()};
+  $("watchTable").addEventListener("keydown",e=>{if(e.target.closest(".fbtn"))return;const th=e.target.closest("th[data-wk]");if(th&&(e.key==="Enter"||e.key===" ")){e.preventDefault();wSort(th)}});
+  $("watchTable").addEventListener("click",e=>{const fb=e.target.closest(".fbtn");if(fb){e.stopPropagation();openFilter(fb);return}const th=e.target.closest("th[data-wk]");if(th){wSort(th);return}const b=e.target.closest("[data-unpin]");if(b){extra.delete(b.dataset.unpin);renderWatch()}});
+  document.addEventListener("click",e=>{const tr=e.target.closest("tr.clickable");if(tr){S.week=+tr.dataset.w;save();render()}});
+  const tip=$("tip");
+  const show=e=>{const i=e.target.closest(".strip i");if(!i){tip.hidden=true;return}
+    const c=i.dataset.c?+i.dataset.c:null,a=i.dataset.a?+i.dataset.a:null;
+    tip.innerHTML=`<b>${i.dataset.t}</b> · ${dlong(i.dataset.d)}<br>Close ${c!=null?money(c,2):"–"}<br>Weekly avg ${a!=null?money(a,2):"n/a"}${c!=null&&a!=null?`<br><span class="${a>c?"pos":"neg"}">${a>c?"Below avg: fill":"Above avg"}</span>`:""}${i.dataset.in==="1"?"<br>In Top 20":""}`;
+    tip.hidden=false;tip.style.left=Math.min(e.clientX+12,innerWidth-250)+"px";tip.style.top=(e.clientY+14)+"px"};
+  document.addEventListener("mousemove",show);document.addEventListener("click",e=>{if(e.target.closest(".strip i"))show(e)});
+  document.addEventListener("scroll",()=>tip.hidden=true,{passive:true,capture:true});
+  render();
+  /* sticky offsets + top scrollbars for the frozen tables */
+  const ctl=document.querySelector(".controls");
+  const setCtl=()=>{const st=getComputedStyle(ctl).position==="sticky";document.documentElement.style.setProperty("--ctl-h",(st?ctl.offsetHeight:0)+"px");document.documentElement.style.setProperty("--dh",document.querySelector("#watch .desk-head").offsetHeight+"px")};
+  const bars=[...document.querySelectorAll(".hbar")].map(bar=>{
+    const box=$(bar.dataset.for).closest(".scroll"),inner=bar.firstElementChild;
+    const sync=()=>{inner.style.width=box.scrollWidth+"px";bar.hidden=box.scrollWidth<=box.clientWidth+1;bar.scrollLeft=box.scrollLeft};
+    bar.addEventListener("scroll",()=>{if(Math.abs(box.scrollLeft-bar.scrollLeft)>1)box.scrollLeft=bar.scrollLeft},{passive:true});
+    box.addEventListener("scroll",()=>{if(Math.abs(box.scrollLeft-bar.scrollLeft)>1)bar.scrollLeft=box.scrollLeft},{passive:true});
+    if(window.ResizeObserver){const ro=new ResizeObserver(sync);ro.observe(box);ro.observe($(bar.dataset.for))}
+    return sync});
+  const relayout=()=>{setCtl();bars.forEach(f=>f())};
+  relayout();addEventListener("resize",relayout);if(window.ResizeObserver)new ResizeObserver(setCtl).observe(ctl);
+  new MutationObserver(render).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  matchMedia("(prefers-color-scheme: light)").addEventListener?.("change",render);
+}
+if(window.__PICK_DATA__) boot(window.__PICK_DATA__);
+else fetch("pick_tracker_data.json?v="+Date.now()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(boot)
+  .catch(err=>{$("boardLede").textContent="Could not load pick_tracker_data.json ("+err.message+"). Run generate_pick_tracker.py and publish again.";});
+})();
+</script>
+
+</body>
+</html>

@@ -389,6 +389,8 @@
       </div>
     </div>
     <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+      <a href="tracker.html" class="theme-toggle" style="width:auto; padding:0 10px; font-family:'IBM Plex Mono',monospace; font-size:12px; text-decoration:none;" title="Pick Tracker: how past recommendations performed">Tracker</a>
+      <a href="lookahead.html" class="theme-toggle" style="width:auto; padding:0 10px; font-family:'IBM Plex Mono',monospace; font-size:12px; text-decoration:none;" title="Look-ahead Strategy: which stock-picking rule is working, and how your own portfolio lines up (upload your holdings)">Look-ahead</a>
       <button id="themeToggle" class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle light/dark theme">◐</button>
     </div>
   </div>
@@ -408,7 +410,7 @@
     <span class="tab-break" aria-hidden="true"></span>
     <button class="tab-btn scan-tab" data-tab="BELOW_SUPPORT">Below Support <span class="tab-count" id="countBelowSupport">0</span></button>
     <button class="tab-btn scan-tab" data-tab="BELOW_FAIR">Below Fair Value <span class="tab-count" id="countBelowFair">0</span></button>
-    <button class="tab-btn scan-tab" data-tab="REBOUND" style="display:none;">Rebound ≥30% <span class="tab-count" id="countRebound">0</span></button>
+    <button class="tab-btn scan-tab" data-tab="REBOUND">Rebound ≥30% <span class="tab-count" id="countRebound">0</span></button>
   </div>
   <div class="search-row">
     <input type="text" class="search-input" id="tickerSearch" placeholder="Search by ticker or name…">
@@ -536,6 +538,30 @@ function fmtEarnDate(iso){
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month:'short', day:'numeric' });
 }
+// --- Dividend badge (HK, 2026-11-16) -----------------------------------------
+// Yield % on every paying stock/ETF; adds the ex-dividend countdown when it's
+// within 30 days (buy BEFORE the ex-date to get the dividend), or "went ex Xd
+// ago" for 5 days after (the price usually drops by about the dividend).
+function dividendBadge(t){
+  const y = t.div_yield_pct;
+  const n = t.ex_div_days;
+  if (y == null && n == null) return '';
+  const yTxt = y != null ? `${y.toFixed(1)}% yield` : 'Dividend';
+  let extra = '', cls = '';
+  if (n != null && n >= 0 && n <= 30){
+    extra = ` · ex-div ${n === 0 ? 'today' : (n === 1 ? 'tmrw' : 'in ' + n + 'd')}`;
+    cls = n <= 7 ? ' urgent' : ' soon';
+  } else if (n != null && n < 0 && n >= -5){
+    extra = ` · went ex ${-n}d ago`;
+    cls = ' reported';
+  }
+  const title = `Dividend yield ${y != null ? y.toFixed(2) + '%' : 'n/a'}${t.div_basis ? ' (' + t.div_basis + ')' : ''}`
+    + `${t.ex_div_date ? ' · ex-dividend ' + t.ex_div_date : ''}`
+    + `${t.last_div != null ? ' · last paid ' + t.last_div + (t.last_div_date ? ' on ' + t.last_div_date : '') : ''}`
+    + '. Own the shares before the ex-date to receive the dividend.';
+  return `<span class="trend-badge earn div${cls}" title="${title}">💰 ${yTxt}${extra}</span>`;
+}
+
 function earningsBadge(t){
   if (t.days_since_earnings != null){
     const ago = t.days_since_earnings === 0 ? 'today' : `${t.days_since_earnings}d ago`;
@@ -640,7 +666,7 @@ function screenerCard(t, i, extra = ''){
       <div class="company" style="margin:-4px 0 8px;">${t.company || ''}</div>
       <div class="card-mid">
         <span>RSI ${t.rsi ?? '—'} · Trend ${t.macd_trend || 'N/A'}</span>
-        ${trendBadge(t.macd_trend, t.ema20, t.ema40)}${vwapBadge(t.vwap_sd_distance)}${kdjActionBadge(t.kdj_action, t.kdj_k, t.kdj_d)}${earningsBadge(t)}
+        ${trendBadge(t.macd_trend, t.ema20, t.ema40)}${vwapBadge(t.vwap_sd_distance)}${kdjActionBadge(t.kdj_action, t.kdj_k, t.kdj_d)}${earningsBadge(t)}${dividendBadge(t)}
       </div>
       <div class="stat-grid two-by-two" id="stat-grid-${i}"
            data-ticker="${t.ticker}"
@@ -684,11 +710,13 @@ function screenerCard(t, i, extra = ''){
           <span class="dlabel">Intrinsic Value</span><span class="dval">${fmtMoney(t.intrinsic_value)}</span>
           <span class="dlabel">Margin of Safety</span><span class="dval">${t.margin_of_safety || '—'}</span>
           <span class="dlabel">Analyst Upside</span><span class="dval">${t.analyst_upside_pct || '—'}</span>
-          <span class="dlabel">Put/Call OI Ratio</span><span class="dval">${t.put_call_ratio ?? '—'}</span>
-          <span class="dlabel">Put Wall (Floor)</span><span class="dval">${fmtMoney(t.put_wall_price)} · ${fmtCompact(t.put_wall_oi)} OI</span>
-          <span class="dlabel">Call Wall (Ceiling)</span><span class="dval">${fmtMoney(t.call_wall_price)} · ${fmtCompact(t.call_wall_oi)} OI</span>
           <span class="dlabel">Next Earnings</span><span class="dval">${t.earnings_date ? `${t.earnings_date}${t.earnings_estimate ? ' (est.)' : ''} · in ${t.earnings_days}d` : '—'}</span>
           <span class="dlabel">Last Earnings</span><span class="dval">${t.last_earnings_date || '—'}</span>
+          <span class="dlabel">Dividend Yield</span><span class="dval">${t.div_yield_pct != null ? t.div_yield_pct.toFixed(2) + '%' + (t.div_basis ? ` <span class="mono">(${t.div_basis})</span>` : '') : '—'}</span>
+          <span class="dlabel">Dividend / Share (annual)</span><span class="dval">${t.div_per_share != null ? t.div_per_share : '—'}</span>
+          <span class="dlabel">Ex-Dividend Date</span><span class="dval">${t.ex_div_date ? `${t.ex_div_date}${t.ex_div_days != null ? (t.ex_div_days >= 0 ? ` · in ${t.ex_div_days}d` : ` · ${-t.ex_div_days}d ago`) : ''}` : '—'}</span>
+          <span class="dlabel">Last Dividend Paid</span><span class="dval">${t.last_div != null ? `${t.last_div}${t.last_div_date ? ' on ' + t.last_div_date : ''}` : '—'}</span>
+          <span class="dlabel">Payout Ratio</span><span class="dval">${t.payout_ratio_pct != null ? t.payout_ratio_pct + '%' : '—'}</span>
           <span class="dlabel">Category</span><span class="dval">${t.category || '—'}</span>
         </div>
       </div>
@@ -1432,7 +1460,10 @@ async function load(){
     const valuationReady = window.Valuation ? Valuation.load() : Promise.resolve(false);
     // Dip-watch data for the "Rebound >=30%" scan tab (2026-11-08) - optional, never throws.
     // dip_watch_data.json holds market data only (no portfolio), so it is safe on the public page.
-    const dipReady = Promise.resolve();   // HK: no dip_watch_data.json yet (Rebound tab hidden)
+    const dipReady = fetch('dip_watch_data.json?v=' + Date.now(), {cache:'no-store'})
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { DIP_WATCH = d; })
+      .catch(e => console.warn('dip_watch_data.json not loaded:', e));
     const res = await fetch('public_data.json?v=' + Date.now(), {cache:'no-store'});
     if (!res.ok){
       throw new Error(`HTTP ${res.status} ${res.statusText} - the file may not have deployed yet, try again in a minute`);
